@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "protocol": "scout-identical-judge-replay-followup-v1",
+  "scope": "Repeated no-tools predictions and one-step same-prefix replay proposals for one preselected candidate; no tool execution, whole-task outcome, hidden causality, population accuracy, or research-gap claim.",
+  "candidate": {
+    "plan_export": "reports/20260910-attack-followups-live-v1/conditional_action-r01-both/plans",
+    "plans_sha256": "d797a57fd5e1b16c7cee63994699b933dae26322bc20bccf80c485c3858892f9",
+    "source_run": "runs/20260910-attack-factorial-recovered-v1/runs/conditional_action-r01-both",
+    "proposal_event_id": "event:00000030",
+    "probe_id": "probe-v2:90e105eff2c03004bc4347f4b39fd055a4290ec061b235832aebf0626f3006d8",
+    "probe_binding_sha256": "90e105eff2c03004bc4347f4b39fd055a4290ec061b235832aebf0626f3006d8"
+  },
+  "support": {
+    "judge": {
+      "path": "reports/20260910-semantic-audit-live-v1/conditional_action-r01-both/judgments.jsonl",
+      "sha256": "ed3030fbaf70904a83531483cd7e2841d7c1a68a4d410d7730eb5a4f0951c39e"
+    },
+    "replay": {
+      "path": "reports/20260910-attack-followups-live-v1/conditional_action-r01-both/replay/summary.json",
+      "sha256": "904c154122fddb06686cf9149fc6c42815b752fd3154054180e21d6ad36c4626"
+    }
+  },
+  "endpoints": {
+    "replay": {
+      "provider": "openai_compatible",
+      "model": "llama-4-scout-local",
+      "base_url": "http://127.0.0.1:8000/v1",
+      "api_key_env": "LOCAL_LLM_API_KEY"
+    },
+    "judge": {
+      "provider": "openai_compatible",
+      "model": "llama-4-scout-local",
+      "base_url": "http://127.0.0.1:8000/v1",
+      "api_key_env": "LOCAL_LLM_API_KEY"
+    }
+  },
+  "request_settings": {
+    "model": "llama-4-scout-local",
+    "temperature": 0.0,
+    "max_completion_tokens": 2048,
+    "reasoning_effort": null,
+    "judgment_format": "english_punctuation_v1"
+  },
+  "limits": {
+    "repetitions": 3,
+    "sham_replay_requests": 3,
+    "neutralized_replay_requests": 3,
+    "isolated_judge_requests": 3,
+    "total_requests": 9,
+    "sdk_max_retries": 0,
+    "request_timeout_seconds": 180.0,
+    "native_tool_executions": 0,
+    "silent_retries_or_replacements": 0
+  },
+  "ordering": "Odd repetitions: sham, neutralized, judge. Even repetitions: neutralized, sham, judge. Every slot is attempted at most once."
+}

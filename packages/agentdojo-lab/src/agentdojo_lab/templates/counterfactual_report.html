@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-@@NONCE@@'; style-src 'nonce-@@NONCE@@'; connect-src 'none'; img-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Counterfactual audit record</title>
+<style nonce="@@NONCE@@">
+:root{color-scheme:light;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172a42;background:#edf2f7;font-size:16px;--ink:#172a42;--muted:#4b6078;--line:#cbd6e3;--accent:#125caf;--surface:#fff}
+*{box-sizing:border-box}body{margin:0}main{max-width:1560px;margin:auto;padding:28px}h1{font-size:1.75rem;line-height:1.2;margin:0 0 12px}h2{font-size:1.1rem;margin:0 0 12px}h3{font-size:1rem;margin:0 0 8px}p{line-height:1.5;margin:8px 0}button,select,input{font:inherit}button,select{color:inherit;background:#fff;border:1px solid var(--line);border-radius:7px;padding:9px 12px}button{cursor:pointer}button:hover{background:#edf5ff}button:focus-visible,select:focus-visible{outline:3px solid #258ce1;outline-offset:3px}pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.875rem;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:2;margin:0}code{overflow-wrap:anywhere}.muted{color:var(--muted)}.small{font-size:.875rem}.eyebrow{text-transform:uppercase;letter-spacing:.09em;font-size:.875rem;font-weight:700;color:#216691}.banner{border-left:4px solid var(--accent);padding:10px 16px;background:#e2eefc;margin:16px 0}.warning{border-color:#b36500;background:#fff2d7}.metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:20px 0}.metric{text-align:left;padding:12px 14px;min-height:84px}.metric strong{display:block;font-size:1.5rem;margin-bottom:4px}.metric span{color:var(--muted);font-size:.875rem}.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px}.flow-wrap{overflow:auto}.flow{display:block;min-width:750px;width:100%;height:auto}.flow .node rect{fill:#fff;stroke:#9cacc0;stroke-width:1.5}.flow .node text{fill:var(--ink);font-size:17px;font-weight:650}.flow .node .sub{font-size:14px;font-weight:400;fill:var(--muted)}.flow .active rect{fill:#dfedff;stroke:#125caf;stroke-width:3}.flow .wire{stroke:#71879f;stroke-width:2;fill:none}.flow .observe{stroke-dasharray:5 4}.flow .tools rect{fill:#f1f4f7;stroke-dasharray:5 4}.flow .label{font-size:13px;fill:var(--muted)}.workspace{display:grid;grid-template-columns:310px minmax(0,1fr);gap:18px;align-items:start}.timeline-panel{position:sticky;top:16px}.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}.toolbar label{font-size:.875rem}.toolbar select{max-width:100%}.timeline{max-height:68vh;overflow:auto;display:flex;flex-direction:column;gap:7px;padding:3px}.record-button{text-align:left;width:100%;border-left:3px solid transparent}.record-button[aria-pressed=true]{background:#e5f0ff;border-color:#79a8db;border-left-color:var(--accent)}.record-button strong,.record-button span{display:block;overflow-wrap:anywhere}.record-button span{font-size:.875rem;margin-top:5px;color:var(--muted)}.selected-header{display:flex;gap:12px;justify-content:space-between;align-items:start}.badge{display:inline-block;background:#e9eff6;padding:4px 9px;border-radius:20px;font-size:.875rem;white-space:nowrap}.compare,.source-sink{display:grid;grid-template-columns:1fr 1fr;gap:14px}.pane{min-width:0;background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:14px;max-height:520px;overflow:auto}.pane pre{padding-top:10px}.judgment{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.judgment div{border:1px solid var(--line);border-radius:8px;padding:12px}.judgment strong{display:block;margin-top:8px;overflow-wrap:anywhere}.judgment span{font-size:.875rem;color:var(--muted)}details{margin-top:12px}summary{cursor:pointer;font-weight:600;padding:8px 0}details pre{padding:12px;background:#f4f7fa;border:1px solid var(--line);border-radius:6px;max-height:560px;overflow:auto}.empty{padding:20px;background:#f7f9fc;color:var(--muted)}[hidden]{display:none!important}footer{font-size:.875rem;color:var(--muted);margin-top:20px}@media(max-width:1050px){.metrics{grid-template-columns:repeat(3,1fr)}.workspace{grid-template-columns:250px minmax(0,1fr)}.compare,.source-sink{grid-template-columns:1fr}}@media(max-width:740px){main{padding:16px}.workspace{grid-template-columns:1fr}.timeline-panel{position:static}.timeline{max-height:260px}.metrics{grid-template-columns:repeat(2,1fr)}.judgment{grid-template-columns:1fr}.selected-header{display:block}.badge{margin-top:8px}}@media(prefers-reduced-motion:no-preference){.flow .node rect{transition:fill .12s,stroke .12s}}
+</style>
+</head>
+<body><main>
+<header><p class="eyebrow">Deferred prefix audit</p><h1>Counterfactual audit record</h1><p id="source-run" class="muted small"></p></header>
+<div class="banner"><strong>An auditor prediction, not an observed counterfactual.</strong><p>The original agent is not rerun. A separate judge compares original context A with neutralized context B for a recorded sink proposal. Its confidence is self-reported, not a causal probability. Unknown or invalid judgments are not evidence of no influence.</p></div>
+<div id="warnings" class="banner warning" hidden></div>
+<div class="metrics" id="metrics" aria-label="Recorded audit counts"></div>
+<p id="judgment-completeness" class="muted small"></p>
+<section class="panel"><h2>Where this record belongs</h2><div class="flow-wrap">
+<svg class="flow" viewBox="0 0 1100 202" role="img" aria-labelledby="flow-title flow-desc">
+<title id="flow-title">Original agent evidence and isolated counterfactual auditor</title><desc id="flow-desc">The original request leads to its proposed sink. A deferred copy goes to the isolated A/B auditor and then its judgment. Native tools belong to the original run. No path connects the auditor to native execution.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#71879f"/></marker></defs>
+<path class="wire" d="M240 53 H270" marker-end="url(#arrow)"/><path class="wire observe" d="M495 53 H550" marker-end="url(#arrow)"/><path class="wire" d="M785 53 H835" marker-end="url(#arrow)"/><path class="wire observe" d="M382 86 V126" marker-end="url(#arrow)"/>
+<g class="node" id="flow-context"><rect x="10" y="18" width="230" height="70" rx="8"/><text x="26" y="47">Native request</text><text class="sub" x="26" y="70">Recorded source context</text></g>
+<g class="node" id="flow-proposal"><rect x="270" y="18" width="225" height="70" rx="8"/><text x="286" y="47">Proposed sink</text><text class="sub" x="286" y="70">Frozen prefix and arguments</text></g>
+<g class="node" id="flow-auditor"><rect x="550" y="18" width="235" height="70" rx="8"/><text x="566" y="47">Isolated A/B auditor</text><text class="sub" x="566" y="70">Separate no-tools request</text></g>
+<g class="node" id="flow-judgment"><rect x="835" y="18" width="250" height="70" rx="8"/><text x="851" y="47">Judgment</text><text class="sub" x="851" y="70">Prediction, validity, uncertainty</text></g>
+<text class="label" x="505" y="112">Deferred observation only</text>
+<g class="node tools" id="flow-tools"><rect x="270" y="132" width="225" height="58" rx="8"/><text x="286" y="157">Native tools</text><text class="sub" x="286" y="179">Original run only</text></g>
+</svg></div><p id="component-label" class="muted small" aria-live="polite">Select a timeline record.</p></section>
+<div class="workspace">
+<aside class="panel timeline-panel"><h2>Audit timeline</h2><div class="toolbar"><label for="record-filter">Show</label><select id="record-filter"><option value="all">All records</option><option value="decision">Decisions</option><option value="probe_request">Auditor requests</option><option value="probe_response">Auditor responses</option><option value="probe_result">Judgments and errors</option></select></div><p id="timeline-count" class="muted small"></p><div id="timeline" class="timeline"></div></aside>
+<div id="detail">
+<section class="panel"><div class="selected-header"><div><h2 id="record-title">No selected record</h2><p id="record-identity" class="muted small"></p></div><span id="record-status" class="badge">Unknown</span></div><div class="toolbar" id="probe-control" hidden><label for="probe-select">Probe in this decision</label><select id="probe-select"></select></div><p id="record-note" class="muted"></p></section>
+<section class="panel"><h2>Source and recorded sink</h2><div class="source-sink"><div class="pane"><h3>Source identity and affected messages</h3><pre id="source-content"></pre></div><div class="pane"><h3>Sink proposal</h3><pre id="sink-content"></pre></div></div></section>
+<section class="panel"><h2>Auditor comparison material</h2><div class="compare"><div class="pane"><h3>A · Original context</h3><pre id="context-a"></pre></div><div class="pane"><h3>B · Neutralized context</h3><pre id="context-b"></pre></div></div><details><summary>Exact recorded replacement paths and hashes</summary><pre id="replacements"></pre></details><details><summary>Lineage identities and paths</summary><pre id="lineage"></pre></details></section>
+<section class="panel"><h2>Linked saved auditor judgment</h2><div class="judgment"><div><span>Would call anyway · prediction</span><strong id="would-call">Unknown</strong></div><div><span>Confidence · self-reported</span><strong id="confidence">Unknown</strong></div><div><span>Recorded alert decision</span><strong id="alert">Unknown</strong></div></div><p id="judgment-note" class="muted"></p><details><summary>Judgment, validity, usage and timing</summary><pre id="judgment-json"></pre></details></section>
+<section class="panel"><details open><summary>Selected raw audit record</summary><pre id="raw-record"></pre></details><details><summary>Linked actual auditor request and response</summary><pre id="exchange"></pre></details></section>
+</div></div>
+<section class="panel"><h2>Protocol, completeness and immutable inputs</h2><p id="unchanged"></p><details><summary>Saved audit summary</summary><pre id="summary-json"></pre></details><details><summary>Manifest and source-run hashes</summary><pre id="manifest-json"></pre></details><details><summary>Audit file hashes</summary><pre id="input-hashes"></pre></details></section>
+<footer>This standalone file contains recorded audit data. It makes no network requests and cannot execute agent tools. Timeline order is the saved record order; it is not a live execution clock.</footer>
+<noscript><p class="banner warning">Enable local JavaScript to inspect the interactive record. Original JSON and JSONL artifacts remain in the audit directory.</p></noscript>
+</main>
+<script id="record" type="application/json" nonce="@@NONCE@@">@@RECORD@@</script>
+<script nonce="@@NONCE@@">
+"use strict";
+// Pure record helpers are tested without a browser. Raw text never becomes markup.
+const AuditView = (() => {
+  const object = value => value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const array = value => Array.isArray(value) ? value : [];
+  const present = value => value !== undefined && value !== null;
+  const first = (...values) => values.find(present);
+  function payload(row) {return {...object(row), ...object(object(row).data)};}
+  function kind(row) {const p=payload(row);return typeof p.record_type === "string" ? p.record_type : "unknown";}
+  function identity(row, key) {return first(payload(row)[key], object(payload(row).plan)[key]);}
+  function component(row) {const mapping={decision:"proposal",probe_request:"auditor",probe_response:"auditor",probe_result:"judgment"};return Object.hasOwn(mapping,kind(row))?mapping[kind(row)]:null;}
+  function probes(row) {const p=payload(row);return array(object(p.plan).probes).filter(v=>Object.keys(object(v)).length);}
+  function linked(row, candidate) {
+    const a=identity(row,"proposal_event_id"), b=identity(candidate,"proposal_event_id");
+    if(!present(a)||!present(b)||a!==b)return false;
+    const ap=identity(row,"probe_id"),bp=identity(candidate,"probe_id");
+    const as=identity(row,"source_id"),bs=identity(candidate,"source_id");
+    if(present(as)&&present(bs)&&as!==bs)return false;
+    return !(present(ap)&&present(bp)&&ap!==bp);
+  }
+  function findProbe(rows, row, chosenId) {
+    const wanted=first(chosenId,identity(row,"probe_id"));
+    const own=probes(row);
+    const candidates=own.length?own:rows.filter(r=>kind(r)==="decision"&&linked(row,r)).flatMap(probes);
+    if(present(wanted))return candidates.find(p=>p.probe_id===wanted)||null;
+    const source=identity(row,"source_id");
+    if(present(source))return candidates.find(p=>p.source_id===source)||null;
+    return candidates.length===1?candidates[0]:own[0]||null;
+  }
+  function initialIndex(rows) {const found=rows.findIndex(row=>kind(row)==="decision"&&object(payload(row).plan).status==="eligible"&&probes(row).length>0);return found>=0?found:rows.length?0:-1;}
+  function forProbe(row, probe) {return probe?{...payload(row),probe_id:probe.probe_id,source_id:probe.source_id}:row;}
+  function exchange(rows,row,probe) {
+    const selected=forProbe(row,probe);
+    if(!present(identity(selected,"probe_id")))return [];
+    return rows.filter(candidate=>kind(candidate)!=="decision"&&identity(candidate,"probe_id")===identity(selected,"probe_id")&&linked(selected,candidate));
+  }
+  function judgment(row) {
+    const p=payload(row), r=object(first(p.result,p.parsed,p));
+    const parsed=object(first(r.parsed,r)), j=object(first(parsed.judgment,r.judgment,p.judgment));
+    const status=first(parsed.status,r.status,p.status);
+    const valid=status==="valid" && typeof j.would_call_anyway==="boolean" && typeof j.confidence==="number" && Number.isFinite(j.confidence) && j.confidence>=0 && j.confidence<=1;
+    return {status:first(status,"unknown"),valid,wouldCall:valid?j.would_call_anyway:null,confidence:valid?j.confidence:null,alert:valid&&typeof p.alert==="boolean"?p.alert:valid&&typeof r.alert==="boolean"?r.alert:null,raw:p};
+  }
+  function count(summary,key) {const s=object(summary),v=first(object(s.counts)[key],s[key],key==="alerts"?object(s.judgments).alert_count:undefined);return Number.isInteger(v)&&v>=0?v:null;}
+  function sourceMessages(probe) {const p=object(probe),a=array(p.context_a);return [...new Set(array(p.replacements).map(r=>object(r).message_index))].filter(i=>Number.isInteger(i)&&i>=0&&i<a.length).map(i=>({message_index:i,message:a[i]}));}
+  return {object,array,first,payload,kind,identity,component,probes,linked,findProbe,initialIndex,forProbe,exchange,judgment,count,sourceMessages};
+})();
+// DOM rendering starts here.
+const record=JSON.parse(document.getElementById("record").textContent);
+const rows=AuditView.array(record.records),manifest=AuditView.object(record.manifest),summary=AuditView.object(record.summary);
+const $=id=>document.getElementById(id);
+const text=(id,value)=>{$(id).textContent=value;};
+const pretty=value=>value===undefined?"Unavailable in this record":JSON.stringify(value,null,2);
+const raw=(id,value)=>text(id,pretty(value));
+const title=type=>{const mapping={decision:"Decision",probe_request:"Auditor request",probe_response:"Auditor response",probe_result:"Judgment / result",unparsed:"Unparsed record"};return Object.hasOwn(mapping,type)?mapping[type]:"Other record";};
+let selectedIndex=-1,chosenProbe;
+text("source-run","Source run (text path only): "+pretty(manifest.source_run));
+raw("summary-json",summary);raw("manifest-json",manifest);raw("input-hashes",record.audit_input_sha256);
+const unchanged=summary.unchanged_original_hashes;
+text("unchanged",unchanged===true?"Original input hashes: unchanged according to the saved audit summary.":unchanged===false?"Original input hashes: a mismatch was reported. Inspect the saved summary.":"Original input hash comparison: unknown. Inspect the saved summary and hashes.");
+text("judgment-completeness",["valid","invalid","error","not_run"].map(key=>key.replace("_"," ")+": "+(AuditView.count(summary,key)??"Unknown")).join(" · ")+". Overall recorded judgment: "+String(AuditView.object(summary.judgments).status??"unknown")+".");
+const warnings=AuditView.array(record.warnings);
+if(warnings.length){$("warnings").hidden=false;$("warnings").textContent=warnings.join(" ");}
+const metricDefinitions=[["eligible","Eligible decisions","decision"],["skipped","Skipped decisions","decision"],["request","Auditor requests","probe_request"],["valid","Valid judgments","probe_result"],["error","Auditor errors","probe_result"],["alerts","Recorded alerts","probe_result"]];
+for(const [key,label,filter] of metricDefinitions){const button=document.createElement("button");button.className="metric";const value=document.createElement("strong");value.textContent=AuditView.count(summary,key)??"Unknown";const name=document.createElement("span");name.textContent=label;button.append(value,name);button.addEventListener("click",()=>{$("record-filter").value=filter;renderTimeline();});$("metrics").append(button);}
+function renderTimeline(){
+  const container=$("timeline");container.replaceChildren();const filter=$("record-filter").value;let visible=0;
+  rows.forEach((row,index)=>{if(filter!=="all"&&AuditView.kind(row)!==filter)return;visible++;const button=document.createElement("button");button.className="record-button";button.setAttribute("aria-pressed",String(index===selectedIndex));const label=document.createElement("strong");label.textContent=(index+1)+" · "+title(AuditView.kind(row));const description=document.createElement("span");description.textContent=[AuditView.identity(row,"probe_id"),AuditView.identity(row,"proposal_event_id"),AuditView.first(AuditView.payload(row).status,AuditView.object(AuditView.payload(row).plan).status)].filter(v=>v!==undefined&&v!==null).map(String).join(" · ")||"Optional identity fields unavailable";button.append(label,description);button.addEventListener("click",()=>selectRecord(index));container.append(button);});
+  text("timeline-count",visible+" shown / "+rows.length+" recorded");if(!visible){const empty=document.createElement("p");empty.className="empty";empty.textContent="No records in this view. Missing evidence is not a negative judgment.";container.append(empty);}
+}
+function selectRecord(index,keepProbe=false){
+  selectedIndex=index;if(!keepProbe)chosenProbe=undefined;const row=rows[index],p=AuditView.payload(row),type=AuditView.kind(row),component=AuditView.component(row);
+  for(const part of ["context","proposal","auditor","judgment","tools"]){const active=part===component;$("flow-"+part).classList.toggle("active",active);$("flow-"+part).setAttribute("aria-label",part+(active?"; selected record":""));}
+  text("component-label",component?title(type)+" → "+({proposal:"recorded sink selection",auditor:"isolated auditor exchange",judgment:"auditor judgment"})[component]:"No agent component is inferred for this record type.");
+  text("record-title",(index+1)+" · "+title(type));text("record-identity",[AuditView.identity(row,"proposal_event_id"),AuditView.identity(row,"source_id"),AuditView.identity(row,"probe_id")].filter(v=>v!==undefined&&v!==null).map(String).join(" · ")||"Identity unavailable");
+  text("record-status",String(AuditView.first(p.status,AuditView.object(p.plan).status,"Unknown")));text("record-note",String(AuditView.first(p.reason,AuditView.object(p.plan).reason,"Saved order only; this audit does not replay native actions.")));
+  const options=AuditView.probes(row);$("probe-control").hidden=options.length<2;$("probe-select").replaceChildren();for(const option of options){const node=document.createElement("option");node.value=String(option.probe_id);node.textContent=String(option.probe_id)+" · "+String(option.source_id??"Source unavailable");$("probe-select").append(node);}
+  const probe=AuditView.findProbe(rows,row,chosenProbe);if(probe)$("probe-select").value=String(probe.probe_id);
+  raw("source-content",probe?{source_id:probe.source_id,label_ids:probe.label_ids,origin_source_ids:probe.origin_source_ids,affected_messages:AuditView.sourceMessages(probe)}:undefined);raw("sink-content",probe?.sink);raw("context-a",probe?.context_a);raw("context-b",probe?.context_b);raw("replacements",probe?.replacements);raw("lineage",probe?.lineage);
+  const linked=AuditView.exchange(rows,row,probe);raw("exchange",linked);raw("raw-record",row);
+  const ownResult=type==="probe_result"?row:null;const resultRow=ownResult||linked.find(item=>AuditView.kind(item)==="probe_result");const judgment=AuditView.judgment(resultRow||{});
+  text("would-call",judgment.wouldCall===true?"Yes":judgment.wouldCall===false?"No":"Unknown");text("confidence",judgment.confidence===null?"Unknown":String(judgment.confidence));text("alert",judgment.alert===true?"Alert recorded":judgment.alert===false?"No alert recorded":"Unknown / not evaluated");raw("judgment-json",resultRow);
+  text("judgment-note",judgment.valid?"Linked saved result; it may appear later than the selected record. Confidence is self-reported and is not a causal probability; an alert is shown only when explicitly recorded.":"No valid judgment is established here. Missing, invalid, skipped or failed results must not be interpreted as no influence.");renderTimeline();
+}
+$("record-filter").addEventListener("change",renderTimeline);$("probe-select").addEventListener("change",event=>{chosenProbe=event.target.value;selectRecord(selectedIndex,true);});
+if(rows.length)selectRecord(AuditView.initialIndex(rows));else{renderTimeline();text("record-note","No audit records are available. No judgment, confidence or alert is inferred.");for(const id of ["source-content","sink-content","context-a","context-b","replacements","lineage","raw-record","exchange","judgment-json"])raw(id,undefined);}
+</script>
+</body></html>

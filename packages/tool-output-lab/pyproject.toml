@@ -1,0 +1,14 @@
+[project]
+name = "tool-output-injection-lab"
+version = "0.8.0"
+description = "A sandboxed experimental harness for matched tool-output injection studies."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+gemini = ["google-genai==2.13.0"]
+groq = ["groq==1.6.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tool_output_lab*"]

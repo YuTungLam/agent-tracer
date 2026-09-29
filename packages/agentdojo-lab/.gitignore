@@ -1,0 +1,14 @@
+/.bootstrap/
+/.venv/
+/.uv-cache/
+/.python/
+/vendor/
+/.env
+/.env.*
+!/.env.example
+/.pytest_cache/
+/.ruff_cache/
+**/__pycache__/
+*.egg-info/
+/dist/
+/.model-cache/

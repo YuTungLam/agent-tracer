@@ -1,0 +1,19 @@
+# Fresh policy/cascade validation condition; do not resume earlier frozen runs.
+provider = "groq"
+model = "openai/gpt-oss-120b"
+benchmark_version = "v1.2.2"
+suite = "workspace"
+user_tasks = ["user_task_20"]
+temperature = 0.0
+reasoning_effort = "low"
+max_completion_tokens = 4096
+max_tool_rounds = 8
+request_timeout_seconds = 60.0
+record_events = true
+online_provenance = true
+pacing_tokens_per_minute = 7000
+# Paths are relative to the working directory. Run commands from agentdojo-lab.
+semantic_model = ".model-cache/all-MiniLM-L6-v2-1110a243"
+semantic_revision = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+
+provenance_policy = "configs/workspace_policy_v1.yaml"

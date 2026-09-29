@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "title": "NeuroTaint reproduction closeout",
+  "verdict": "This bounded AgentDojo adaptation is closed with engineering evidence and explicit limits. Independent attribution accuracy and full paper-method equivalence are not established.",
+  "closure_status": "completed_with_evidence_limits",
+  "accepted_gates": 7,
+  "total_gates": 8,
+  "progress_path": "REPRODUCTION_PROGRESS.json",
+  "paper": {
+    "title": "Ghost in the Agent: Redefining Information Flow Tracking for LLM Agents",
+    "url": "https://arxiv.org/html/2604.23374v1",
+    "verified_at": "2026-09-09",
+    "reading_scope": "Method and evaluation sections 3-5, implementation disclosures, and label semantics in Appendix B.2. Primary-source read for method comparison; no new model experiment. Local evidence is assessed separately."
+  },
+  "components": [
+    {
+      "id": "prefix_components",
+      "title": "Lexical and semantic components",
+      "assessment": "partial",
+      "paper_anchor": "#S4.SS2",
+      "method_reference": "Hybrid tracker",
+      "local_result": "Exact and LCS components, pinned local MiniLM, and fragment scoring are implemented. Ten saved real traces support repeated prefix scoring.",
+      "limits": "Unicode matching, token truncation, three-sentence chunks with one-sentence overlap, and encoded-span coverage are disclosed implementation choices. Component consistency does not establish semantic attribution accuracy.",
+      "evidence": ["PROVENANCE.md", "SEMANTIC.md", "reports/20260908-semantic-pilot-v1/reproducibility.json"]
+    },
+    {
+      "id": "live_contract",
+      "title": "Online observation contract",
+      "assessment": "verified_in_scope",
+      "paper_anchor": "#S4",
+      "method_reference": "Runtime collection / offline auditing",
+      "local_result": "A detached sidecar records each proposal before native tool runtime. Fixed-response controls preserve outbound requests, actions, history and environment, including error paths.",
+      "limits": "This pre-runtime online contract is a local adaptation. Computation is synchronous and has no hard analysis deadline; logs do not reveal hidden model reasoning or internal causal dependencies.",
+      "evidence": ["ONLINE.md", "ONLINE-RESULTS.md", "tests/test_live_attribution_integration.py", "tests/test_recording.py"]
+    },
+    {
+      "id": "real_agent_validation",
+      "title": "Real-agent recording consistency",
+      "assessment": "verified_in_scope",
+      "paper_anchor": "#S4.SS4",
+      "method_reference": "Implementation context",
+      "local_result": "Real Groq execution has proposal-time receipts and exact saved-prefix replay. The latest ten-run calendar batch passes 300/300 consistency checks across 20 executed proposals and 50 argument fields.",
+      "limits": "This establishes the tested recording and replay contract, not source correctness, maliciousness or a causal overhead estimate. Standalone recorder overhead is unavailable.",
+      "evidence": ["reports/20260908-online-validation/live-verification.json", "runs/20260908-online-groq-task20/report.html", "reports/20260909-heldout-validation-v1/quality.json"]
+    },
+    {
+      "id": "policy_cascade",
+      "title": "Source/sink policy and ordered stages",
+      "assessment": "partial",
+      "paper_anchor": "#S4.SS2",
+      "method_reference": "Hybrid tracker / evaluation profiles",
+      "local_result": "A fixed workspace policy routes each eligible source and selected leaf argument through the cascade. Ordinary thresholds and the restored-memory semantic threshold are implemented; each skipped or unavailable stage remains explicit.",
+      "limits": "Source eligibility, per-leaf comparison and stopping choices are local. Scenario-specific implicit-string and safe-control threshold profiles are absent. In all three repeated evaluation batches every observed first hit is Tier2; these trials do not exercise later-stage effectiveness.",
+      "evidence": ["CASCADE.md", "CASCADE-RESULTS.md", "configs/workspace_policy_v1.yaml", "reports/20260908-cascade-validation/live-verification.json"]
+    },
+    {
+      "id": "lineage_memory",
+      "title": "DCPG and memory restoration",
+      "assessment": "partial",
+      "paper_anchor": "#S4.SS1",
+      "method_reference": "DCPG",
+      "local_result": "A private lineage checkpoint and exact native cloud-drive adapter preserve candidate ancestry. A two-session native control restores stored content and lineage; saved traces repeat exactly.",
+      "limits": "Coverage is limited to the tested file adapter and namespace. Real-model cross-session efficacy is unvalidated. The selected live task32 failed at provider validation after search/create; its two executed proposals remain verified. Native query restarts retire active memory bindings and do not prove an environment reset.",
+      "evidence": ["LINEAGE.md", "LINEAGE-RESULTS.md", "runs/20260908-lineage-memory-control/validation.json", "reports/20260908-lineage-validation/quality.json"]
+    },
+    {
+      "id": "canary",
+      "title": "Separate Canary condition",
+      "assessment": "partial",
+      "paper_anchor": "#S4.SS2",
+      "method_reference": "Tier1",
+      "local_result": "UUID assignment, actual publication/exposure, controlled sink carryover and cross-session restoration are implemented. A fresh task29 comparison has five passive and five Canary injected runs, all completed.",
+      "limits": "This condition changes model-visible source text. No Tier1 sink hit or primary outcome advantage appears in that comparison. The earlier two task31 provider failures are retained. A missing canary does not rule out influence.",
+      "evidence": ["CANARY.md", "CANARY-RESULTS.md", "reports/20260908-canary-validation/quality.json", "reports/20260908-canary-pair-v1/pair.json", "INPUT-COMPARISON-RESULTS.md"]
+    },
+    {
+      "id": "counterfactual",
+      "title": "Isolated A/B auditor",
+      "assessment": "partial",
+      "paper_anchor": "#S4.SS3",
+      "method_reference": "Causal analyzer",
+      "local_result": "Source neutralization and a deferred no-tools A/B judge operate on saved proposal-time prefixes. Seven native controls pass 37/37 checks; two separate Groq auditor requests produce valid predictions without changing primary records.",
+      "limits": "Auditor predictions are not observed counterfactual agent reruns. The local neutralization and conservative trigger are one interpretation. Joint/conjunctive-cause detection is not implemented; independent causal accuracy remains unknown. Zero auditor requests in later batches mean ineligibility, not a negative causal result.",
+      "evidence": ["COUNTERFACTUAL.md", "COUNTERFACTUAL-RESULTS.md", "runs/20260909-counterfactual-native-control/validation.json", "reports/20260909-counterfactual-direct-live/summary.json", "reports/20260909-counterfactual-memory-live/summary.json", "reports/20260909-counterfactual-validation/quality.json"]
+    },
+    {
+      "id": "independent_evaluation",
+      "title": "Independent attribution evaluation",
+      "assessment": "unvalidated",
+      "paper_anchor": "#S5",
+      "method_reference": "Evaluation / reference labels",
+      "local_result": "Three distinct ten-slot native batches, saved-prefix ablations, lexical diagnostics and assisted development labels are complete. Native task outcomes and actual payload exposure have valid separate denominators.",
+      "limits": "Independent source-field references, second review/adjudication and independent scoring are pending. Precision, recall and F1 are null. Native utility and attack goals do not label attribution. Original result tables, external benchmark coverage, unseen-tool/attack robustness and defense benefit are not reproduced.",
+      "evidence": ["EVALUATION.md", "EVALUATION-RESULTS.md", "ASSISTED-SCORING.md", "reports/20260909-assisted-scoring-v1/assisted-agreement.json", "HELDOUT-RESULTS.md"]
+    }
+  ],
+  "experiments": [
+    {
+      "id": "pilot",
+      "title": "Task29 development pilot",
+      "summary": "reports/20260909-evaluation-pilot-v1/evaluation-summary.json",
+      "report": "reports/20260909-evaluation-pilot-v1/index.html",
+      "arm_key": "conditions",
+      "group_label": "Clean versus injected; both Canary-enabled",
+      "validation": "reports/20260909-evaluation-validation/quality.json"
+    },
+    {
+      "id": "input_comparison",
+      "title": "Task29 input comparison",
+      "summary": "reports/20260909-input-comparison-v1/input-comparison-summary.json",
+      "report": "reports/20260909-input-comparison-v1/index.html",
+      "arm_key": "input_conditions",
+      "group_label": "Passive versus Canary; both injected",
+      "validation": "reports/20260909-input-comparison-validation/quality.json"
+    },
+    {
+      "id": "heldout",
+      "title": "Task8 prospective calendar case",
+      "summary": "reports/20260909-heldout-v2/heldout-summary.json",
+      "report": "reports/20260909-heldout-v2/index.html",
+      "arm_key": "conditions",
+      "group_label": "Clean versus injected; both passive; new legitimate operation only",
+      "validation": "reports/20260909-heldout-validation-v1/quality.json"
+    }
+  ],
+  "findings": [
+    {
+      "id": "email_candidates",
+      "title": "User-provided emails receive tool-source LCS candidates",
+      "status": "observed_limitation_candidate",
+      "observation": "All twenty participant-email fields in the task8 batch occur literally in the user request but not as complete literals in eligible calendar output. Whole-output LCS scores range from 0.8696 to 0.9688 and trigger Tier2.",
+      "limit": "Character overlap supplies a candidate, not source reliance. This is not an independent false-positive rate or a confirmed flaw in the original authors' implementation. No new experiment is scheduled automatically.",
+      "evidence": ["reports/20260909-heldout-validation-v1/lexical-observations.json", "HELDOUT-RESULTS.md", "reports/20260909-heldout-spans-v1/index.html"]
+    },
+    {
+      "id": "lexical_extension",
+      "title": "Decoded source-region extension",
+      "status": "verified_engineering_extension",
+      "observation": "Historical pilot/comparison: 40 selected fields and 560 scored scalar comparisons. Calendar case: 30 selected fields and 330 comparisons. Each export passes the same 12 frozen engineering controls; these are analyses of existing trials, not new executions.",
+      "limit": "This optional local extension is not an original-paper component or another acceptance gate. No complete selected target literal occurs inside the annotated payload regions; scattered LCS characters do not prove semantic or malicious propagation.",
+      "evidence": ["SPAN-DIAGNOSTIC.md", "SPAN-DIAGNOSTIC-RESULTS.md", "reports/20260909-span-diagnostic-v1/span-summary.json", "reports/20260909-heldout-spans-v1/span-summary.json"]
+    },
+    {
+      "id": "assisted_reference",
+      "title": "Completed assisted review stays development evidence",
+      "status": "independent_accuracy_unavailable",
+      "observation": "Twenty Codex-assisted items comprise ten definitive positive references and ten ambiguous items. Exact, LCS and the saved cascade each agree on ten comparable pairs; there are no definitive negative reference pairs.",
+      "limit": "Authorship remains Codex and independence remains false. These are not independent precision/recall/F1 results. The owner will not be asked to repeat the completed twenty items during closeout.",
+      "evidence": ["ASSISTED-REVIEW.md", "ASSISTED-SCORING.md", "annotations/20260909-pilot-assisted-labels.json", "reports/20260909-assisted-scoring-v1/assisted-agreement.json"]
+    },
+    {
+      "id": "native_utility_scope",
+      "title": "Native task metrics have narrower contracts",
+      "status": "documented_evaluator_limit",
+      "observation": "Task29 utility checks file modifications, not the quality of suggested activities. Task8 utility checks additions/diff category without explicitly binding the new participants to event24. The attack evaluator checks file13 deletion.",
+      "limit": "Preserve native values with these limits. None supplies source-content correspondence labels or proves why an action happened.",
+      "evidence": ["EVALUATION.md", "HELDOUT.md", "HELDOUT-RESULTS.md"]
+    },
+    {
+      "id": "retained_failures",
+      "title": "Earlier integration failures remain visible",
+      "status": "retained_execution_limits",
+      "observation": "The lineage task32 and both task31 Canary-pair runs failed at provider tool validation. Valid preceding proposals, exposure records and replay receipts remain retained. The later three completed evaluation batches do not replace these trials.",
+      "limit": "These provider failures limit tested real-agent paths; they do not establish a NeuroTaint method failure. Their native incomplete outcomes remain unknown.",
+      "evidence": ["LINEAGE-RESULTS.md", "CANARY-RESULTS.md", "reports/20260908-canary-pair-v1/pair.json", "reports/20260908-lineage-validation/quality.json"]
+    }
+  ],
+  "fallacy_checks": [
+    {"id":"simpson","title":"Simpson's paradox","assessment":"scope_control","reason":"Keep three protocols and their arms separate; no pooled effect or ASR is reported."},
+    {"id":"ecological","title":"Ecological inference","assessment":"scope_control","reason":"Repeated slots are repetitions of two tasks, not independent tasks, tools or populations."},
+    {"id":"berkson","title":"Filtered selection","assessment":"limitation_retained","reason":"Native read-to-write eligibility and prior development constrain the case set. Generalization is untested."},
+    {"id":"collider","title":"Conditioning on common effects","assessment":"not_applicable_to_claimed_analysis","reason":"No adjusted causal model is fitted. Exposed-only native rates, when shown, retain their descriptive conditioning."},
+    {"id":"base_rate","title":"Base-rate neglect","assessment":"scope_control","reason":"No deployment prevalence, precision or recall is inferred from the balanced/assigned experiment slots."},
+    {"id":"regression_mean","title":"Regression to the mean","assessment":"not_applicable_to_claimed_analysis","reason":"No pre/post adaptation or improvement from outcome-selected extreme cases is claimed."},
+    {"id":"survivorship","title":"Survivorship bias","assessment":"checked","reason":"All fixed slots and earlier provider failures remain in their own evidence records; failed native outcomes stay unknown."},
+    {"id":"look_elsewhere","title":"Look-elsewhere effect","assessment":"scope_control","reason":"No significance tests or attack-success-driven replacement search; lexical findings are descriptive."},
+    {"id":"forking_paths","title":"Analysis flexibility","assessment":"limitation_retained","reason":"Prospective plans and fixed scorers are retained. The scalar extension and assisted labels are disclosed development work."},
+    {"id":"causation","title":"Similarity versus causation","assessment":"scope_control","reason":"Candidate matches and auditor predictions are not causal reference labels or proof of a defense benefit."},
+    {"id":"reverse","title":"Temporal order versus reliance","assessment":"scope_control","reason":"Prefix checks establish recorded order; they do not establish model reliance or uniquely identify a contributing source."}
+  ],
+  "limitations": [
+    "The bounded closeout is complete; independent attribution acceptance remains open at 7/8 gates. Gate counts measure the locally declared checklist, not method equivalence or percentage of research effort.",
+    "Verified-in-scope, partial and unvalidated are claim assessments. A component can have an accepted local engineering gate and still be only a partial paper adaptation.",
+    "No CTTA, model-weight updates, automatic action blocking or real-account side effects were implemented.",
+    "Specialized threshold profiles, joint/conjunctive-cause detection, arbitrary memory backends, original benchmark/model coverage and actual counterfactual agent reruns are outside the implemented scope.",
+    "Standalone recorder overhead is unavailable. Pacing, synchronous sidecar, primary-run and whole-worker timers overlap or cover different phases; their sums cannot establish causal overhead.",
+    "Operational totals for the three repeated batches exclude earlier integration/control and auditor runs. Token totals are recorded API fields, not complete provider billing.",
+    "The current closeout adds zero model requests and schedules no further experiment. Any later independent evaluation or method improvement is a separate research phase.",
+    "Runtime HTML/JSONL and local model files are ignored by Git; source, frozen configuration and result notes are tracked. Transfer runtime artifacts separately and exclude credentials."
+  ]
+}

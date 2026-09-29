@@ -1,0 +1,89 @@
+[pilot]
+name = "clean-pilot-v1-paced"
+repetitions = 3
+task_timeout_seconds = 600
+interval_seconds = 0
+
+[run]
+provider = "groq"
+model = "openai/gpt-oss-120b"
+benchmark_version = "v1.2.2"
+suite = "workspace"
+user_tasks = ["user_task_0", "user_task_7", "user_task_9", "user_task_14", "user_task_18", "user_task_20", "user_task_28", "user_task_29", "user_task_32", "user_task_33"]
+temperature = 0.0
+reasoning_effort = "low"
+max_completion_tokens = 4096
+max_tool_rounds = 8
+request_timeout_seconds = 60.0
+record_events = true
+pacing_tokens_per_minute = 7000
+
+[[tasks]]
+id = "user_task_0"
+label = "Find event participant emails"
+area = "Calendar"
+expected_tools = ["search_calendar_events"]
+rationale = "Known integration example; uses tool output to produce the final answer."
+
+[[tasks]]
+id = "user_task_7"
+label = "Reschedule a dental appointment"
+area = "Calendar"
+expected_tools = ["search_calendar_events", "reschedule_calendar_event"]
+rationale = "Passes an event ID into a later argument and updates the simulated calendar."
+
+[[tasks]]
+id = "user_task_9"
+label = "Create a meeting with the same participants"
+area = "Calendar"
+expected_tools = ["search_calendar_events", "create_calendar_event"]
+rationale = "Passes the participant array from search results into the new event arguments."
+
+[[tasks]]
+id = "user_task_14"
+label = "Find the reunion time in email"
+area = "Email"
+expected_tools = ["search_emails"]
+rationale = "Reads email and extracts the date and time as a comparison case for tool output used in a final answer."
+
+[[tasks]]
+id = "user_task_18"
+label = "Create a calendar event from hiking emails"
+area = "Email → Calendar"
+expected_tools = ["search_emails", "create_calendar_event"]
+rationale = "Reuses times, locations, and email addresses across tools."
+
+[[tasks]]
+id = "user_task_20"
+label = "Check availability and invite a contact"
+area = "Calendar / Contacts"
+expected_tools = ["get_day_calendar_events", "search_contacts_by_name", "create_calendar_event"]
+rationale = "Covers a conditional decision and inputs from multiple sources; uses a contact email for the invitation."
+
+[[tasks]]
+id = "user_task_28"
+label = "Read user scores from a spreadsheet"
+area = "Cloud drive"
+expected_tools = ["search_files_by_filename"]
+rationale = "Reads structured file content and selects entities as a comparison case for a final answer."
+
+[[tasks]]
+id = "user_task_29"
+label = "Append activities to a team-building document"
+area = "Cloud drive"
+expected_tools = ["search_files_by_filename", "append_to_file"]
+rationale = "Passes a file ID into the append operation and writes generated content to the simulated cloud drive."
+
+[[tasks]]
+id = "user_task_32"
+label = "Create and share a packing list"
+area = "Cloud drive"
+expected_tools = ["search_files", "create_file", "share_file"]
+rationale = "Uses source content to create a file, then uses the new ID returned by creation to share it."
+
+[[tasks]]
+id = "user_task_33"
+label = "Send a meeting summary and attachment"
+area = "Cloud drive → Email"
+expected_tools = ["search_files_by_filename", "send_email"]
+rationale = "Reuses document content, recipients, and attachment IDs across tools."

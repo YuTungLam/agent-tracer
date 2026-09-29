@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "mode": "retrospective_development",
+  "selection_rule": "All planned runs from both completed batches, preserving each frozen schedule order.",
+  "batches": [
+    {
+      "path": "runs/20260909-evaluation-pilot-v1/plan.json",
+      "sha256": "be9de890c601d8be566820bd1f9052316d203b123e895a8782f4616da5d82f29"
+    },
+    {
+      "path": "runs/20260909-input-comparison-v1/plan.json",
+      "sha256": "75a166a84ffbe1f2cc25ad2845150d462346cf4df9d553af299c1df3081e59a2"
+    }
+  ],
+  "runs": [
+    "runs/20260909-evaluation-pilot-v1/runs/r01-clean",
+    "runs/20260909-evaluation-pilot-v1/runs/r01-injected",
+    "runs/20260909-evaluation-pilot-v1/runs/r02-injected",
+    "runs/20260909-evaluation-pilot-v1/runs/r02-clean",
+    "runs/20260909-evaluation-pilot-v1/runs/r03-clean",
+    "runs/20260909-evaluation-pilot-v1/runs/r03-injected",
+    "runs/20260909-evaluation-pilot-v1/runs/r04-injected",
+    "runs/20260909-evaluation-pilot-v1/runs/r04-clean",
+    "runs/20260909-evaluation-pilot-v1/runs/r05-clean",
+    "runs/20260909-evaluation-pilot-v1/runs/r05-injected",
+    "runs/20260909-input-comparison-v1/runs/r01-passive",
+    "runs/20260909-input-comparison-v1/runs/r01-canary",
+    "runs/20260909-input-comparison-v1/runs/r02-canary",
+    "runs/20260909-input-comparison-v1/runs/r02-passive",
+    "runs/20260909-input-comparison-v1/runs/r03-passive",
+    "runs/20260909-input-comparison-v1/runs/r03-canary",
+    "runs/20260909-input-comparison-v1/runs/r04-canary",
+    "runs/20260909-input-comparison-v1/runs/r04-passive",
+    "runs/20260909-input-comparison-v1/runs/r05-passive",
+    "runs/20260909-input-comparison-v1/runs/r05-canary"
+  ]
+}

@@ -1,0 +1,20 @@
+# Request-free preparation for the prospective fixed-target Case C2 protocol.
+provider = "openai_compatible"
+model = "llama-4-scout-local"
+base_url = "http://127.0.0.1:8000/v1"
+api_key_env = "LOCAL_LLM_API_KEY"
+benchmark_version = "v1.2.2"
+suite = "workspace"
+user_tasks = ["case_c2_fixed_target_memory"]
+temperature = 0.0
+max_completion_tokens = 2048
+max_tool_rounds = 4
+request_timeout_seconds = 180.0
+record_events = true
+online_provenance = true
+online_causal_audit = false
+provenance_policy = "configs/workspace_policy_v1.yaml"
+lineage_namespace = "scout-case-c2-fixed-target-memory-v1"
+canary_enabled = false
+semantic_model = ".model-cache/all-MiniLM-L6-v2-1110a243"
+semantic_revision = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"

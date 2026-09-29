@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-__NONCE__'; style-src 'nonce-__NONCE__'; connect-src 'none'; img-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Source evidence review</title>
+<style nonce="__NONCE__">
+:root{color-scheme:light;--ink:#172b35;--muted:#526a76;--line:#d7e2e5;--accent:#087c75;--paper:#fff;--bg:#f3f7f7;--wash:#e6f4f0;--amber:#80581a;--amberwash:#fff3d9}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,sans-serif}button,textarea{font:inherit}button{cursor:pointer;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);padding:8px 12px}button:hover,button:focus-visible{border-color:var(--accent);outline:2px solid #087c7528}button:disabled{opacity:.4;cursor:default}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}main{max-width:1200px;margin:auto;padding:34px 28px 50px}h1{font-size:30px;letter-spacing:-.8px;line-height:1.15;margin:8px 0 10px}h2{font-size:20px;margin:0 0 8px}h3{font-size:14px;margin:0 0 8px}p{margin:8px 0}.eyebrow{text-transform:uppercase;letter-spacing:.12em;font-size:11px;font-weight:750;color:var(--accent)}.muted,.meta{color:var(--muted)}.meta{font-size:13px}.top{display:flex;justify-content:space-between;gap:24px;align-items:center}.badge{display:inline-block;font-size:12px;font-weight:700;background:var(--wash);color:var(--accent);border-radius:20px;padding:4px 10px}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 12px}.stats{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}.stat{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:12px 16px;min-width:136px}.stat strong{font-size:25px;display:block;line-height:1.1}.stat span{font-size:12px;color:var(--muted)}.layout{display:grid;grid-template-columns:218px minmax(0,1fr);gap:20px;align-items:start;margin-top:22px}.panel{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:22px}.item-list{display:grid;gap:7px;max-height:640px;overflow:auto;padding-right:4px}.item-button{text-align:left;display:grid;grid-template-columns:26px 1fr;gap:8px;padding:9px 10px;width:100%}.item-button[aria-current="true"]{background:var(--wash);border-color:var(--accent)}.item-button small{display:block;font-size:11px;color:var(--muted)}.item-number{font-size:12px;color:var(--muted);padding-top:2px}.item-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.item-nav div{display:flex;gap:6px}.verdict{font-size:13px;display:inline-block;border-radius:7px;padding:4px 9px;background:var(--wash);color:var(--accent);font-weight:700}.verdict.uncertain{background:var(--amberwash);color:var(--amber)}.target{background:#f5f8f9;border:1px solid var(--line);padding:16px;border-radius:10px;max-height:350px;overflow:auto}.rationale{font-size:16px;margin:13px 0 20px;white-space:pre-wrap}.flow{display:flex;align-items:center;gap:8px;padding:12px 0 18px}.flow button{flex:1;font-size:12px;padding:9px 4px}.flow button[aria-pressed="true"]{background:var(--wash);border-color:var(--accent)}.arrow{color:#8b9da4}.section{margin-top:20px;scroll-margin-top:16px}details{border-top:1px solid var(--line);padding:13px 0}summary{cursor:pointer;font-weight:650;font-size:13px}summary small{font-weight:400;color:var(--muted)}pre,blockquote{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0;font:13px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace}blockquote{font-family:inherit;border-left:3px solid var(--accent);padding:8px 14px;background:#f4f9f8;border-radius:0 6px 6px 0}pre.source{max-height:380px;overflow:auto;background:#f5f8f9;padding:14px;border-radius:8px}.evidence-card{padding:12px 0;border-bottom:1px solid #edf1f2}.evidence-card:last-child{border-bottom:0}textarea{width:100%;min-height:96px;resize:vertical;padding:12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);margin-top:8px}.status{min-height:22px;font-size:12px;color:var(--muted)}.help{font-size:12px;color:var(--muted);margin:7px 0 0}footer{margin-top:24px;color:var(--muted);font-size:12px}.rubric{margin-top:8px}.rubric li{margin:7px 0}code{font-size:13px;overflow-wrap:anywhere}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}@media(max-width:760px){main{padding:22px 14px}.top{display:block}.top>.badge{margin-top:12px}.layout{grid-template-columns:1fr}.item-list{display:flex;max-height:none;overflow-x:auto;padding-bottom:8px}.item-button{min-width:145px}.panel{padding:17px}.stat{min-width:110px;flex:1}h1{font-size:26px}}
+</style>
+</head>
+<body>
+<main>
+  <header class="top"><div><div class="eyebrow">AgentDojo · Source evidence</div><h1>Your completed review</h1><p class="muted" id="ownership"></p></div><span class="badge">Completed annotations</span></header>
+  <div class="stats" id="stats" aria-label="Annotation summary"></div>
+  <p class="meta">These labels describe visible source support. They do not establish malicious influence or causal propagation.</p>
+  <div class="toolbar"><button class="primary" id="download-labels">Download annotations</button><button id="download-notes">Export my notes</button><button id="import-notes">Import my notes</button><input id="notes-file" class="sr-only" type="file" accept="application/json,.json" aria-label="Import notes JSON"></div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+  <details class="rubric"><summary>How the decisions were made</summary><ul id="rubric"></ul></details>
+  <details id="provenance-section"><summary>Annotation provenance</summary><p class="meta" id="provenance-author"></p><p class="meta" id="provenance-mode"></p><p class="meta" id="provenance-human"></p><p class="meta" id="provenance-independence"></p><p class="meta">These annotations do not provide an independent human accuracy estimate.</p></details>
+  <div class="layout">
+    <aside aria-label="Review items"><h3>Review items</h3><nav class="item-list" id="item-list"></nav></aside>
+    <article class="panel">
+      <div class="item-nav"><span class="eyebrow" id="item-position"></span><div><button id="previous" aria-label="Previous item">←</button><button id="next" aria-label="Next item">→</button></div></div>
+      <h2 id="item-title"></h2><span id="verdict" class="verdict"></span>
+      <div class="flow" aria-label="Evidence review flow"><button id="flow-source" aria-pressed="false">1 · Source</button><span class="arrow" aria-hidden="true">→</span><button id="flow-target" aria-pressed="true">2 · Argument</button><span class="arrow" aria-hidden="true">→</span><button id="flow-decision" aria-pressed="false">3 · Evidence decision</button></div>
+      <section id="target-section" class="section"><h3>Argument the agent proposed</h3><pre class="target" id="target-value"></pre></section>
+      <section id="decision-section" class="section"><h3>Why this label</h3><p class="rationale" id="rationale-preview"></p><details id="reasoning-section"><summary>Full reasoning</summary><p class="rationale" id="rationale"></p></details></section>
+      <details id="evidence-section"><summary id="evidence-summary">Selected evidence</summary><div id="evidence"></div></details>
+      <details id="sources-section"><summary>All visible sources</summary><div id="sources"></div></details>
+      <details><summary>Task and full request context</summary><h3 class="section">User task</h3><pre id="task"></pre><h3 class="section">Tool proposal</h3><pre id="sink"></pre><h3 class="section">Request prefix</h3><pre class="source" id="prefix"></pre><p class="meta" id="item-id"></p></details>
+      <section class="section"><label for="notes"><strong>My notes</strong> <span class="meta">Optional</span></label><textarea id="notes" maxlength="20000" placeholder="Keep a question or a correction here."></textarea><p class="help">Notes are separate from the completed annotations. Export them before moving to another browser or computer.</p></section>
+    </article>
+  </div>
+  <footer id="footer"></footer>
+</main>
+<script id="review-data" type="application/json" nonce="__NONCE__">__PAYLOAD__</script>
+<script nonce="__NONCE__">
+'use strict';
+const AssistedReview = (() => {
+  const verdictNames = {single:'Single source',multiple:'Multiple sources',no_visible_source:'No visible source',ambiguous:'Ambiguous',unjudgeable:'Unjudgeable'};
+  const sameKeys = (value, keys) => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join('|') === [...keys].sort().join('|');
+  const textValue = value => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  function rationalePreview(value) {const sentence=(value.match(/^.*?[.!?](?:\s|$)/s)||[value])[0].trim();return sentence.length<=240?sentence:sentence.slice(0,237).replace(/\s+\S*$/,'')+'…';}
+  function annotations(data) {
+    if (data.method !== 'ai_assisted_source_review_v1' || data.authorship.mode !== 'ai_assisted' || data.authorship.labels_human_authored !== false || data.authorship.independence_attested !== false) throw new Error('Annotation provenance is invalid.');
+    return JSON.parse(JSON.stringify({schema_version:data.schema_version,method:data.method,packet:data.packet,authorship:data.authorship,rubric:data.rubric,answers:data.answers}));
+  }
+  function notesDocument(data, notes) {
+    return {schema_version:1,method:'ai_assisted_review_notes_v1',packet_digest:data.packet.packet_digest,project_owner:data.authorship.project_owner,notes_are_separate_from_labels:true,notes_by_item:{...notes}};
+  }
+  function notesStorageKey(data) {
+    return 'agentdojo:source-review-notes:v2:'+JSON.stringify([data.packet.packet_digest,data.authorship.project_owner]);
+  }
+  function readNotes(data, value) {
+    if (!sameKeys(value,['schema_version','method','packet_digest','project_owner','notes_are_separate_from_labels','notes_by_item']) || value.schema_version !== 1 || value.method !== 'ai_assisted_review_notes_v1' || value.packet_digest !== data.packet.packet_digest || value.project_owner !== data.authorship.project_owner || value.notes_are_separate_from_labels !== true) throw new Error('This notes file belongs to a different review or uses an unsupported format.');
+    if (value.notes_by_item === null || typeof value.notes_by_item !== 'object' || Array.isArray(value.notes_by_item)) throw new Error('The notes file has invalid entries.');
+    const known = new Set(data.items.map(item=>item.item_id)), notes=Object.create(null);
+    for (const [id,note] of Object.entries(value.notes_by_item)) {
+      if (!known.has(id) || typeof note !== 'string' || note.length > 20000) throw new Error('A note has an unknown item or is too long.');
+      if (note) notes[id]=note;
+    }
+    return notes;
+  }
+  function quote(source, locator) {
+    const points=Array.from(source.text);
+    if (Number.isInteger(locator.start) && Number.isInteger(locator.end) && locator.start >= 0 && locator.end > locator.start && locator.end <= points.length) return points.slice(locator.start,locator.end).join('');
+    return null;
+  }
+  function counts(data) {
+    const result={completed:0,total:data.items.length,verdicts:{}};
+    const byId=new Map(data.answers.map(answer=>[answer.item_id,answer]));
+    for(const item of data.items){const answer=byId.get(item.item_id);if(answer && verdictNames[answer.verdict] && typeof answer.rationale==='string' && answer.rationale.trim()){result.completed++;result.verdicts[answer.verdict]=(result.verdicts[answer.verdict]||0)+1;}}
+    return result;
+  }
+  return {verdictNames,textValue,rationalePreview,annotations,notesDocument,notesStorageKey,readNotes,quote,counts};
+})();
+// DOM rendering begins here.
+const data=JSON.parse(document.getElementById('review-data').textContent);
+const el=id=>document.getElementById(id);
+const make=(tag,text,className)=>{const element=document.createElement(tag);if(text!==undefined)element.textContent=text;if(className)element.className=className;return element;};
+const answers=new Map(data.answers.map(answer=>[answer.item_id,answer]));
+const storageKey=AssistedReview.notesStorageKey(data);
+let index=0,notes=Object.create(null),storageAvailable=true;
+const status=text=>{el('status').textContent=text;};
+try{const saved=localStorage.getItem(storageKey);if(saved)notes=AssistedReview.readNotes(data,JSON.parse(saved));}catch(error){storageAvailable=false;status('Browser storage is unavailable. Use Export my notes to keep your notes.');}
+function persistNotes(){try{localStorage.setItem(storageKey,JSON.stringify(AssistedReview.notesDocument(data,notes)));storageAvailable=true;status('Notes saved in this browser. Export them to keep a portable copy.');}catch(error){storageAvailable=false;status('Notes remain in this tab. Use Export my notes to save a copy.');}}
+function download(value,filename){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)+'\n'],{type:'application/json'}));const link=make('a');link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+el('ownership').textContent='Project owner: '+data.authorship.project_owner;
+el('provenance-author').textContent='Annotation author: '+data.authorship.annotation_author;
+el('provenance-mode').textContent='Annotation method: '+(data.authorship.mode==='ai_assisted'?'AI-assisted':data.authorship.mode);
+el('provenance-human').textContent='Labels human-authored: '+String(data.authorship.labels_human_authored);
+el('provenance-independence').textContent='Independent review attested: '+String(data.authorship.independence_attested);
+const summary=AssistedReview.counts(data);
+function stat(value,label){const box=make('div',undefined,'stat');box.append(make('strong',String(value)),make('span',label));el('stats').append(box);}
+stat(summary.completed+'/'+summary.total,'items annotated');
+for(const [verdict,count] of Object.entries(summary.verdicts))stat(count,AssistedReview.verdictNames[verdict]);
+for(const rule of data.rubric)el('rubric').append(make('li',rule));
+el('footer').textContent='Offline report · Frozen annotations · Packet '+data.packet.packet_digest.slice(0,16);
+const itemButtons=data.items.map((item,i)=>{const answer=answers.get(item.item_id);const button=make('button',undefined,'item-button');button.append(make('span',String(i+1).padStart(2,'0'),'item-number'));const label=make('span',item.target.argument_path);label.append(make('small',AssistedReview.verdictNames[answer.verdict]));button.append(label);button.addEventListener('click',()=>show(i));el('item-list').append(button);return button;});
+function focusFlow(name,scroll=true){for(const part of ['source','target','decision'])el('flow-'+part).setAttribute('aria-pressed',String(part===name));const target=name==='source'?el('evidence-section'):el(name+'-section');if(name==='source')target.open=true;if(scroll)target.scrollIntoView({behavior:'smooth',block:'nearest'});}
+function show(i){index=i;const item=data.items[index],answer=answers.get(item.item_id);el('item-position').textContent='Item '+(index+1)+' of '+data.items.length;el('item-title').textContent=item.sink.function+' · '+item.target.argument_path;el('verdict').textContent=AssistedReview.verdictNames[answer.verdict];el('verdict').className='verdict'+(['ambiguous','unjudgeable'].includes(answer.verdict)?' uncertain':'');el('target-value').textContent=AssistedReview.textValue(item.target.value);el('rationale-preview').textContent=AssistedReview.rationalePreview(answer.rationale);el('rationale').textContent=answer.rationale;el('reasoning-section').open=false;el('task').textContent=AssistedReview.textValue(item.task.user_messages);el('sink').textContent=AssistedReview.textValue(item.sink.arguments);el('prefix').textContent=AssistedReview.textValue(item.request_prefix);el('item-id').textContent=item.item_id;el('notes').value=notes[item.item_id]||'';el('previous').disabled=index===0;el('next').disabled=index===data.items.length-1;itemButtons.forEach((button,j)=>button.setAttribute('aria-current',String(j===index)));el('evidence').replaceChildren();el('sources').replaceChildren();el('evidence-section').open=false;el('sources-section').open=false;
+  const selected=new Set(answer.selected_source_ids);el('evidence-summary').textContent='Selected evidence · '+selected.size+' source'+(selected.size===1?'':'s');
+  item.source_options.forEach((source,j)=>{const title='Source '+(j+1)+' · '+source.kind;const detail=make('details');detail.append(make('summary',title+(selected.has(source.source_id)?' · selected':'')),make('pre',source.text,'source'));el('sources').append(detail);if(selected.has(source.source_id)){const card=make('div',undefined,'evidence-card');card.append(make('h3',title));const locators=answer.evidence_locators.filter(locator=>locator.source_id===source.source_id);for(const locator of locators){const quoted=AssistedReview.quote(source,locator);if(quoted!==null)card.append(make('blockquote',quoted));if(locator.locator)card.append(make('p',locator.locator,'meta'));if(Number.isInteger(locator.start))card.append(make('p','Text span ['+locator.start+', '+locator.end+') · Unicode character offsets','help'));}if(!locators.length)card.append(make('p','See this source in All visible sources.','meta'));el('evidence').append(card);}});
+  if(!selected.size)el('evidence').append(make('p','No source was selected for this judgment.','meta'));focusFlow('target',false);
+}
+el('previous').addEventListener('click',()=>{if(index>0)show(index-1);});el('next').addEventListener('click',()=>{if(index<data.items.length-1)show(index+1);});
+for(const part of ['source','target','decision'])el('flow-'+part).addEventListener('click',()=>focusFlow(part));
+el('notes').addEventListener('input',()=>{const id=data.items[index].item_id;if(el('notes').value)notes[id]=el('notes').value;else delete notes[id];persistNotes();});
+el('download-labels').addEventListener('click',()=>{try{download(AssistedReview.annotations(data),'source-review-annotations.json');status('Annotations exported with their provenance information.');}catch(error){status(error.message);}});
+el('download-notes').addEventListener('click',()=>{download(AssistedReview.notesDocument(data,notes),'review-notes.json');status('Notes exported separately from the annotations.');});
+el('import-notes').addEventListener('click',()=>el('notes-file').click());
+el('notes-file').addEventListener('change',async()=>{const file=el('notes-file').files[0];if(!file)return;try{if(file.size>2000000)throw new Error('The notes file is too large.');const imported=AssistedReview.readNotes(data,JSON.parse(await file.text()));notes=imported;persistNotes();show(index);status('Notes imported; annotations are unchanged.'+(storageAvailable?'':' Export notes to keep a copy.'));}catch(error){status('Import failed: '+error.message);}finally{el('notes-file').value='';}});
+show(0);
+</script>
+</body>
+</html>

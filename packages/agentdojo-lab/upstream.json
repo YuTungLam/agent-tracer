@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/ethz-spylab/agentdojo.git",
+  "commit": "089ed468cf3ed0322acc66b0211f26d9d90dbf60",
+  "package_version": "0.1.35",
+  "benchmark_version": "v1.2.2"
+}

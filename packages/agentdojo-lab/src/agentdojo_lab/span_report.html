@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Decoded source span diagnostic</title>
+<style>
+:root{color-scheme:light dark;--bg:light-dark(#fafaf8,#181a1b);--fg:light-dark(#202727,#e7eae7);--muted:light-dark(#505d5d,#b7c1bf);--line:light-dark(#d7ded9,#3e4945);--payload:light-dark(#ffdfa5,#604520);--literal:light-dark(#147569,#70d6c1)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif}main{max-width:1000px;margin:auto;padding:30px 24px 70px}h1{font-size:26px;font-weight:600;margin:0 0 8px}h2{font-size:19px;font-weight:600;margin:22px 0 8px}p{margin:8px 0}a{color:var(--literal)}button,select{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:8px 12px;max-width:100%}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}label{display:block}select{width:100%;margin:6px 0 14px}.nav{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:20px 0}.muted{color:var(--muted)}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.65 ui-monospace,monospace;margin:0;padding:14px 0}mark{background:var(--payload);color:var(--fg)}.literal{text-decoration:underline 2px var(--literal);text-underline-offset:3px}details{border-top:1px solid var(--line);padding:12px 0;margin-top:14px}summary{cursor:pointer}.pair{display:grid;grid-template-columns:1fr 1fr;gap:28px}.pair>div{min-width:0}.facts{border-left:3px solid var(--line);padding-left:14px;margin:14px 0}.status{font-weight:600}.legend{font-size:14px}.break{overflow-wrap:anywhere}[hidden]{display:none!important}@media(max-width:660px){main{padding:22px 16px}.pair{grid-template-columns:1fr;gap:0}}@media(pointer:coarse){button,select,summary{min-height:44px}}
+</style></head><body><main>
+<h1>Where does the text match?</h1>
+<p class="muted">Offline diagnostics on saved traces · No new model calls</p>
+<p id="summary" class="status"></p>
+<p>Look at one argument and one source scalar at a time. Highlights locate known payload text; they do not prove that the model followed it.</p>
+<div class="nav"><button type="button" id="previous">Previous field</button><span id="position" aria-live="polite"></span><button type="button" id="next">Next field</button></div>
+<label for="field">Saved argument</label><select id="field"></select>
+<p id="identity" class="muted break"></p>
+<a id="original" hidden>Open original timeline and agent diagram</a>
+<label for="source">Source scalar</label><select id="source"></select>
+<p id="availability" class="status" aria-live="polite"></p>
+<div class="pair"><div><h2>Decoded source</h2><pre id="source-text"></pre></div><div><h2>Proposed argument</h2><pre id="target-text"></pre></div></div>
+<p class="legend"><mark>Assigned payload region</mark> · <span class="literal">Complete literal occurrence of the target</span></p>
+<div class="facts"><p id="literal"></p><p id="alignment"></p><p id="information" class="muted"></p></div>
+<details><summary>How to interpret this evidence</summary><p id="interpretation"></p><p>All offsets count decoded Unicode codepoints. The wire span encloses the original serialized token; it is not a character-by-character raw offset map. LCS can match scattered, incidental letters. An exact miss can still contain reused subphrases.</p></details>
+<details><summary>Recorded identities and original whole-message baseline</summary><pre id="technical"></pre></details>
+<details><summary id="control-summary">Fixed engineering controls</summary><label for="control">Control case</label><select id="control"></select><p id="control-purpose"></p><pre id="control-text"></pre><pre id="control-result"></pre></details>
+<details><summary>Run availability and immutable inputs</summary><pre id="inventory"></pre></details>
+<p class="muted">Independent attribution accuracy: unavailable. Held-out evaluation: not performed by this report.</p>
+<noscript>This report needs JavaScript for local navigation. Full evidence is in span-summary.json and span-results.jsonl.</noscript>
+</main><script type="application/json" id="span-data">__SPAN_DATA__</script>
+<script>
+"use strict";
+const data=JSON.parse(document.getElementById("span-data").textContent);
+const el=id=>document.getElementById(id);
+const text=(id,value)=>{el(id).textContent=value??"Unavailable";};
+const pretty=value=>JSON.stringify(value,null,2);
+const fields=data.runs.flatMap((run,runIndex)=>(run.fields||[]).filter(field=>field.policy_selected===true).map(field=>({run,field,runIndex})));
+function option(value,label){const node=document.createElement("option");node.value=String(value);node.textContent=label;return node;}
+function highlighted(node,value,regions,hits){
+  const chars=Array.from(value);node.replaceChildren();
+  const cuts=new Set([0,chars.length]);
+  for(const span of [...regions,...hits]){cuts.add(span[0]);cuts.add(span[1]);}
+  const positions=[...cuts].sort((a,b)=>a-b);
+  for(let i=0;i<positions.length-1;i++){
+    const start=positions[i],end=positions[i+1];
+    const injected=regions.some(s=>s[0]<=start&&s[1]>=end);
+    const literal=hits.some(s=>s[0]<=start&&s[1]>=end);
+    const part=document.createElement(injected?"mark":"span");
+    if(literal)part.className="literal";
+    part.textContent=chars.slice(start,end).join("");node.append(part);
+  }
+}
+function showSource(){
+  const selected=fields[Number(el("field").value)];if(!selected)return;
+  const field=selected.field,source=(field.sources||[])[Number(el("source").value)];
+  text("target-text",field.target);
+  if(!source){text("availability","No eligible source scalar available");text("source-text","");text("literal","Literal location: unavailable");text("alignment","Alignment: unavailable");text("information","");text("technical",pretty(field));return;}
+  const evidence=source.evidence;
+  const hits=evidence?.literal_evidence?.hits||[];
+  highlighted(el("source-text"),source.source_text||"",source.injection_spans||[],hits.map(hit=>hit.source_span));
+  text("availability",evidence?`Comparison: ${evidence.status}`:`Unavailable: ${source.reason||source.status||"source decoding or binding"}`);
+  const literal=evidence?.literal_evidence;
+  text("literal",literal?`Complete literal location: ${literal.classification.replaceAll("_"," ")} · ${literal.occurrence_count??"unknown"} occurrence(s) · ${literal.complete?"complete":"incomplete"}`:"Literal location: unavailable");
+  const alignment=evidence?.optimal_alignment;
+  text("alignment",alignment?`Across all optimal LCS alignments: ${alignment.min_injection_matched_codepoints??"?"}–${alignment.max_injection_matched_codepoints??"?"} of ${alignment.lcs_length??"?"} matched codepoints fall inside assigned regions.`:"Alignment: unavailable");
+  text("information",evidence?.low_information_target?"Short or numeric target: repeated identifiers can give weak provenance evidence.":"These are character matches, without a semantic or causal verdict.");
+  const {source_text,evidence:omit,...identity}=source;
+  text("technical",pretty({field:{item_id:field.item_id,argument_path:field.argument_path,proposal_sequence:field.proposal_sequence,model_request_id:field.model_request_id},source:identity,whole_scalar_lcs:evidence?.whole_scalar_lcs}));
+}
+function showField(){
+  const index=Number(el("field").value),selected=fields[index];
+  el("previous").disabled=index<=0;el("next").disabled=index>=fields.length-1;
+  text("position",fields.length?`${index+1} / ${fields.length}`:"0 / 0");
+  if(!selected){text("availability","No verified fields available; expand run availability below.");return;}
+  const {run,field}=selected;
+  text("identity",`${run.run_dir} · ${run.condition||"unknown condition"} · ${run.input_condition||"unknown input"}`);
+  el("original").hidden=!run.original_report_href;
+  if(run.original_report_href)el("original").setAttribute("href",run.original_report_href);
+  const sources=field.sources||[];
+  el("source").replaceChildren(...sources.map((s,i)=>option(i,`${s.scalar_pointer||"(root)"} · ${s.injection_spans?.length?"payload present":"outside assigned regions"} · ${s.request_pointer||"unavailable"}`)));
+  const preferred=sources.findIndex(s=>s.injection_spans?.length);
+  el("source").value=String(preferred>=0?preferred:0);showSource();
+}
+text("summary",`${data.summary.requested_runs} saved runs · ${data.summary.selected_fields} selected fields · ${data.summary.controls_passed}/${data.summary.controls_total} engineering controls passed`);
+text("interpretation",data.interpretation);
+text("inventory",pretty({summary:data.summary,runs:data.runs.map(r=>({run_dir:r.run_dir,status:r.status,errors:r.errors,reason:r.reason})),plan_sha256:data.plan_sha256,controls_sha256:data.controls_sha256}));
+el("field").replaceChildren(...fields.map(({field,run},i)=>option(i,`${i+1}. ${run.condition||"unknown"} · ${run.input_condition||"unknown"} · ${field.function} ${field.argument_path}`)));
+el("field").addEventListener("change",showField);el("source").addEventListener("change",showSource);
+el("previous").addEventListener("click",()=>{el("field").selectedIndex=Math.max(0,el("field").selectedIndex-1);showField();});
+el("next").addEventListener("click",()=>{el("field").selectedIndex=Math.min(fields.length-1,el("field").selectedIndex+1);showField();});
+text("control-summary",`Fixed engineering controls · ${data.summary.controls_passed}/${data.summary.controls_total} passed`);
+el("control").replaceChildren(...data.controls.map((c,i)=>option(i,c.id.replaceAll("_"," "))));
+function showControl(){const c=data.controls[Number(el("control").value)];if(!c)return;text("control-purpose",c.purpose);text("control-text",`Source: ${c.source}\nTarget: ${c.target}\nAssigned ranges: ${pretty(c.injection_spans)}`);text("control-result",pretty({passed:c.passed,expected:c.expected,observed:c.observed}));}
+el("control").addEventListener("change",showControl);showControl();
+const preferred=fields.findIndex(({field,run})=>run.condition==="injected"&&field.argument_path?.includes("content"));
+if(preferred>=0)el("field").value=String(preferred);showField();
+</script></body></html>

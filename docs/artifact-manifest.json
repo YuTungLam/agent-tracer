@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "source_repository": "https://github.com/YuTungLam/Tool-Output-Injection-Attacks-on-Agentic-AI-Systems",
+  "source_commit": "f761e0883452a1c52234d92978ca4511ac4bea51",
+  "access_note": "Historical source is public; privacy and research-integrity review is required before redistribution.",
+  "artifacts": [
+    {
+      "id": "agentdojo-runs-at-f761e088",
+      "path": "codebase/agentdojo-lab/runs",
+      "git_tree": "b4b561073eb0a71be7672f33f2c64b43d1e40d46",
+      "file_count": 14418,
+      "logical_bytes": 480717682,
+      "access_classification": "historical-public-sensitive-research-data"
+    },
+    {
+      "id": "agentdojo-reports-at-f761e088",
+      "path": "codebase/agentdojo-lab/reports",
+      "git_tree": "99d6e357198c818ab5653d26e49ebc7d511d6001",
+      "file_count": 1529,
+      "logical_bytes": 242865589,
+      "access_classification": "historical-public-sensitive-research-data"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+# M7 clean-agent validation: isolated bounded causal auditing before native runtime.
+provider = "groq"
+model = "openai/gpt-oss-120b"
+benchmark_version = "v1.2.2"
+suite = "workspace"
+user_tasks = ["user_task_6"]
+temperature = 0.0
+reasoning_effort = "low"
+max_completion_tokens = 4096
+max_tool_rounds = 8
+request_timeout_seconds = 60.0
+record_events = true
+online_provenance = true
+online_causal_audit = true
+pacing_tokens_per_minute = 7000
+semantic_model = ".model-cache/all-MiniLM-L6-v2-1110a243"
+semantic_revision = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+provenance_policy = "configs/workspace_policy_v1.yaml"
+lineage_namespace = "workspace-task6-online-causal-v1"
+causal_model = "openai/gpt-oss-120b"
+causal_max_requests = 4
+causal_max_sources = 8
+causal_max_pairs = 12
+causal_request_timeout_seconds = 60.0

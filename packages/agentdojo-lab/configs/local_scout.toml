@@ -1,0 +1,22 @@
+# New local-provider clean smoke configuration. Not a frozen research protocol.
+# Serve inside the same Slurm allocation and set LOCAL_LLM_API_KEY locally.
+provider = "openai_compatible"
+model = "llama-4-scout-local"
+base_url = "http://127.0.0.1:8000/v1"
+api_key_env = "LOCAL_LLM_API_KEY"
+benchmark_version = "v1.2.2"
+suite = "workspace"
+user_tasks = ["user_task_0"]
+temperature = 0.0
+max_completion_tokens = 2048
+max_tool_rounds = 4
+request_timeout_seconds = 180.0
+record_events = true
+
+# Explicitly select the judge before enabling online_causal_audit together with
+# its existing policy, lineage, and pinned semantic-model prerequisites.
+[causal_endpoint]
+provider = "openai_compatible"
+model = "llama-4-scout-local"
+base_url = "http://127.0.0.1:8000/v1"
+api_key_env = "LOCAL_LLM_API_KEY"

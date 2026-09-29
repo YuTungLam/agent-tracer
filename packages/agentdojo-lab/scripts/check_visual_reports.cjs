@@ -1,0 +1,74 @@
+/* Optional real-browser checks for the offline report presentation. No model calls. */
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const {pathToFileURL} = require('node:url');
+const {chromium} = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const lab = path.resolve(__dirname, '..');
+const library = path.join(lab, 'reports/visual-library-v1');
+const output = path.join(library, 'previews');
+
+(async () => {
+  fs.mkdirSync(output, {recursive:true});
+  const browser = await chromium.launch({headless:true, args:['--disable-dev-shm-usage']});
+  const checks = [], errors = [];
+  try {
+    const page = await browser.newPage({viewport:{width:1440,height:1050}});
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => {if (message.type() === 'error') errors.push(message.text());});
+    const open = async file => page.goto(pathToFileURL(path.join(lab,file)).href);
+    const fits = async label => {
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false,label);
+      checks.push(label);
+    };
+    await open('runs/scout-case-a-prepared-v5/paired-report/index.html');
+    await page.waitForFunction(() => document.querySelector('#selection-explanation')?.textContent.includes('event:00000037'));
+    await page.evaluate(() => document.fonts.ready);
+    assert.ok((await page.locator('#readable-comparison').innerText()).includes('john.mitchell@gmail.com'));
+    assert.equal(await page.locator('#readable-comparison mark').count(),4);
+    assert.equal(await page.locator('#overview-source option:checked').innerText(),'search_files_by_filename · 27 / 27');
+    await fits('paired desktop layout');
+    await page.screenshot({path:path.join(output,'case-a-desktop.png'),fullPage:true});
+    checks.push('default event 37 has recipient and date highlights');
+    await page.getByRole('tab',{name:'Sources',exact:true}).click();
+    assert.ok((await page.locator('#source-comparison').innerText()).includes('attacker@example.com'));
+    assert.equal(await page.locator('.source-title').first().innerText(),'search_files_by_filename');
+    await page.locator('#event-comparison').screenshot({path:path.join(output,'case-a-sources.png')});
+    const sourceLink=page.locator('#source-comparison button[data-source-id="event:00000027"]').first();
+    await sourceLink.click();
+    assert.ok((await page.locator('#selection-explanation').innerText()).includes('event:00000027'));
+    checks.push('source contents and source-to-event navigation');
+    await page.locator('#event-filter').selectOption('all');
+    await page.locator('#event-search').fill('event:00000034');
+    await page.locator('#event-graph [data-arm="attacked"]').first().click();
+    await page.getByRole('tab',{name:'Side by side',exact:true}).click();
+    assert.ok((await page.locator('#selection-explanation').innerText()).includes('event:00000034'));
+    assert.equal(await page.locator('#difference-summary').innerText(),'2 recorded field differences');
+    checks.push('event 34 click updates paired response differences');
+    await page.locator('#event-search').fill('');
+    await page.locator('#jump-divergence').click();
+    await page.setViewportSize({width:390,height:844});
+    await fits('paired phone layout');
+    await page.screenshot({path:path.join(output,'case-a-mobile.png'),fullPage:true});
+    await open('reports/visual-library-v1/runs/runs/scout-case-a-prepared-v5/attacked/report.html');
+    assert.ok(await page.locator('.journey-svg [role="button"]').count());
+    await page.locator('[data-journey-event="event:00000037"]').click();
+    assert.ok((await page.locator('#selected-route').innerText()).includes('Event 37'));
+    checks.push('single-run SVG selection updates the evidence inspector');
+    await fits('single-run phone layout');
+    await page.screenshot({path:path.join(output,'single-run-mobile.png'),fullPage:true});
+    await page.setViewportSize({width:1365,height:1000});
+    await fits('single-run desktop layout');
+    await page.screenshot({path:path.join(output,'single-run-desktop.png'),fullPage:true});
+    await open('reports/visual-library-v1/index.html');
+    await fits('library desktop layout');
+    await page.screenshot({path:path.join(output,'library-desktop.png')});
+    await page.setViewportSize({width:390,height:844});
+    await fits('library phone layout');
+    await page.screenshot({path:path.join(output,'library-mobile.png')});
+    assert.deepEqual(errors,[]);
+    checks.push('no browser JavaScript or console errors');
+    fs.writeFileSync(path.join(library,'browser-verification.json'),JSON.stringify({checks,errors},null,2)+'\n');
+    console.log(JSON.stringify({checks,errors},null,2));
+  } finally {await browser.close();}
+})().catch(error => {console.error(error);process.exitCode=1;});

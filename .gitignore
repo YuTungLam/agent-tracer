@@ -1,0 +1,54 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python environments, caches, and build products
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.bootstrap/
+.test-deps/
+.python/
+.uv-cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+
+# Downloaded dependencies and model caches
+vendor/
+.cache/
+.huggingface/
+*.safetensors
+
+# Generated experiment evidence
+**/runs/
+**/reports/
+**/results/
+**/outputs/
+**/artifacts/
+**/annotations/
+traces/
+*.log
+slurm-*.out
+
+# Local databases and notebooks
+*.sqlite
+*.sqlite3
+.ipynb_checkpoints/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

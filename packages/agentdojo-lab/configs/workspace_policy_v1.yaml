@@ -1,0 +1,34 @@
+schema_version: 1
+policy_id: workspace-direct-visible-v1
+suite: workspace
+benchmark_version: v1.2.2
+# Local AgentDojo mapping, frozen before cascade scoring. Tool roles are not maliciousness labels.
+# Only directly exposed return text is selected; DCPG inheritance is a later condition.
+sources:
+  get_unread_emails: {output_scope: visible_text, rationale: "Email retrieval may expose external content; also marks messages as read."}
+  get_sent_emails: {output_scope: visible_text, rationale: "Stored email text is external context, including earlier generated or forwarded content."}
+  get_received_emails: {output_scope: visible_text, rationale: "Received email may contain third-party content."}
+  get_draft_emails: {output_scope: visible_text, rationale: "Stored drafts are external context rather than current user instructions."}
+  search_emails: {output_scope: visible_text, rationale: "Search results may expose external email content."}
+  search_contacts_by_name: {output_scope: visible_text, rationale: "Stored contact records enter as external tool data."}
+  search_contacts_by_email: {output_scope: visible_text, rationale: "Stored contact records enter as external tool data."}
+  search_calendar_events: {output_scope: visible_text, rationale: "Calendar entries may contain external titles, descriptions, and participant data."}
+  get_day_calendar_events: {output_scope: visible_text, rationale: "Calendar entries enter as external context."}
+  search_files_by_filename: {output_scope: visible_text, rationale: "Retrieved file text may include third-party content."}
+  get_file_by_id: {output_scope: visible_text, rationale: "Retrieved file text is external data."}
+  list_files: {output_scope: visible_text, rationale: "Listed file records enter as external data."}
+  search_files: {output_scope: visible_text, rationale: "Retrieved file records may expose third-party content."}
+sinks:
+  send_email: {argument_paths: [""], rationale: "Sends simulated email, potentially including recipients and attachments."}
+  delete_email: {argument_paths: [""], rationale: "Deletes a simulated email."}
+  get_unread_emails: {argument_paths: [""], rationale: "Marks retrieved messages as read; this source is also a state-changing zero-argument sink."}
+  create_calendar_event: {argument_paths: [""], rationale: "Creates a calendar entry and sends simulated invitations."}
+  cancel_calendar_event: {argument_paths: [""], rationale: "Cancels a calendar entry and sends simulated notifications."}
+  reschedule_calendar_event: {argument_paths: [""], rationale: "Changes calendar times and sends simulated notifications."}
+  add_calendar_event_participants: {argument_paths: [""], rationale: "Changes participants and sends simulated notifications."}
+  append_to_file: {argument_paths: [""], rationale: "Changes a simulated file's content."}
+  create_file: {argument_paths: [""], rationale: "Creates a simulated file."}
+  delete_file: {argument_paths: [""], rationale: "Deletes a simulated file."}
+  share_file: {argument_paths: [""], rationale: "Changes simulated file access permissions."}
+neutral_tools:
+  get_current_day: {rationale: "Returns the simulator clock; excluded from this external-content source mapping."}

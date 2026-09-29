@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-@@NONCE@@'; style-src 'nonce-@@NONCE@@'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Blind source evidence review</title>
+<style nonce="@@NONCE@@">
+:root{color-scheme:light;font:16px system-ui,-apple-system,sans-serif;color:#172a42;background:#edf2f7;--line:#bdcddd;--accent:#125caf;--muted:#4c6175}*{box-sizing:border-box}body{margin:0}main{max-width:1480px;margin:auto;padding:26px}h1{font-size:1.8rem;margin:0 0 12px}h2{font-size:1.1rem;margin:0 0 12px}h3{font-size:1rem;margin:0 0 8px}p,li{line-height:1.55}button,input,textarea,select{font:inherit}button,select,input[type=text],textarea{border:1px solid var(--line);border-radius:6px;padding:10px;background:white;color:inherit}button{cursor:pointer}button:hover{background:#e8f1ff}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #2679cc;outline-offset:2px}textarea{width:100%;min-height:100px;resize:vertical}input[type=text]{width:100%}.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;margin:16px 0}.notice{border-left:4px solid var(--accent);background:#e0edfc;padding:12px 16px}.muted{color:var(--muted)}.small{font-size:.875rem}.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start}.sidebar{position:sticky;top:16px;max-height:80vh;overflow:auto}.item{display:block;width:100%;text-align:left;margin:8px 0;border-left:4px solid transparent}.item[aria-pressed=true]{border-left-color:var(--accent);background:#e8f1ff}.item span{display:block;font-size:.875rem;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}pre{font:.875rem/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f8fb;padding:12px;border:1px solid var(--line);border-radius:6px;max-height:500px;overflow:auto}.columns{display:grid;grid-template-columns:1fr 1fr;gap:16px}.source{border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0}.source label{display:flex;gap:10px;align-items:start;font-weight:650;overflow-wrap:anywhere}.source input{width:18px;height:18px;flex-shrink:0}.source pre{margin-bottom:0}.field{margin:18px 0}.field>label{display:block;font-weight:650;margin-bottom:8px}.attest{display:flex;gap:12px;align-items:start;margin:14px 0}.attest input{width:18px;height:18px;flex-shrink:0}details{margin:12px 0}summary{cursor:pointer;padding:8px 0;font-weight:650}.actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.primary{background:#125caf;color:white;font-weight:650}.primary:hover{background:#0e4889}.error{color:#8a210c;font-weight:650}footer{font-size:.875rem;color:var(--muted);margin-top:24px}[hidden]{display:none!important}@media(max-width:900px){.columns{grid-template-columns:1fr}.layout{grid-template-columns:220px minmax(0,1fr)}}@media(max-width:650px){main{padding:14px}.layout{grid-template-columns:1fr}.sidebar{position:static;max-height:230px}}
+</style></head><body><main>
+<h1>Blind source evidence review</h1>
+<div class="notice"><strong>Judge visible evidence, not the tracer.</strong><p>For each target argument, identify which visible sources support its content or value. Exact reuse and a defensible transformation can support a selection; mere topical similarity is insufficient. This is evidence attribution, not proof of causality, maliciousness, or authorization.</p><p>Items contain no tracer predictions, condition keys, or outcomes. Blinding is partial: the recorded content itself may reveal an injection or task. Do not consult prediction reports, judge outputs, or the private identity key.</p></div>
+<details class="panel"><summary>Annotation instructions and verdicts</summary>
+<ul><li><strong>Single source:</strong> one visible source supports this field's derivation.</li><li><strong>Multiple sources:</strong> distinct visible sources jointly or independently support the derivation. Select every supported source.</li><li><strong>No visible source:</strong> none of the displayed sources supports derivation. Select no sources. This does not establish where the value actually came from.</li><li><strong>Ambiguous:</strong> the visible evidence leaves competing explanations. Explain the ambiguity; optionally select the plausible sources.</li><li><strong>Unjudgeable:</strong> the available record is insufficient or unsuitable. Explain what is missing; do not convert uncertainty into no visible source.</li></ul>
+<p>A rationale is required for every item. Source options include user, system, assistant, and tool content visible in the request; they are not a shortlist selected by a model. Message indexes are zero-based. Optional spans use half-open Unicode code-point offsets in the displayed source text. Provider call identifiers in the request prefix have local aliases; content is preserved.</p>
+</details>
+<div class="layout"><aside class="panel sidebar"><h2>Fields to review</h2><p id="progress" class="muted small"></p><div id="items"></div></aside><div>
+<section class="panel"><h2 id="item-title">No review item</h2><p id="item-id" class="muted small"></p><div class="columns"><div><h3>Recorded sink</h3><pre id="sink"></pre></div><div><h3>Target argument</h3><pre id="target"></pre></div></div><details><summary>User task text</summary><pre id="task"></pre></details><details><summary>Complete recorded request prefix</summary><pre id="prefix"></pre></details></section>
+<section class="panel"><h2>Visible source options</h2><div id="sources"></div></section>
+<section class="panel" id="answer-panel"><h2>Your evidence annotation</h2>
+<div class="field"><label for="verdict">Verdict</label><select id="verdict"><option value="">Choose a verdict</option><option value="single">Single source</option><option value="multiple">Multiple sources</option><option value="no_visible_source">No visible source</option><option value="ambiguous">Ambiguous</option><option value="unjudgeable">Unjudgeable</option></select></div>
+<div class="field"><label for="rationale">Rationale · required</label><textarea id="rationale" placeholder="Explain the visible evidence supporting your selections or uncertainty."></textarea></div>
+<details><summary>Optional evidence spans or locators</summary><p class="muted small">Enter a JSON list. Each entry needs a selected source_id and either start/end offsets or a written locator. Example shape: {"source_id":"source_…","start":0,"end":8}. Do not include a numeric confidence score.</p><textarea id="locators" aria-label="Optional evidence locators as JSON" placeholder="Leave blank if not needed."></textarea></details>
+</section></div></div>
+<section class="panel"><h2>Reviewer declaration and submission</h2>
+<div class="field"><label for="reviewer">Human reviewer identifier · required</label><input type="text" id="reviewer" maxlength="200" autocomplete="off" placeholder="Your name or agreed reviewer identifier"></div>
+<label class="attest"><input type="checkbox" id="independent"><span>I judged these items independently of tracer predictions, auditor/judge outputs, experimental condition keys, and recorded outcomes.</span></label>
+<label class="attest"><input type="checkbox" id="human"><span>I am a human reviewer and wrote these judgments myself; they are not generated or prefilled labels.</span></label>
+<p class="muted small">These are declarations. The page cannot verify your identity or independence. Answers stay in this page until downloaded; refreshing loses unsaved work.</p>
+<div class="actions"><button id="download" class="primary">Validate and download labels</button><span id="result" role="status" aria-live="polite"></span></div>
+</section>
+<footer><p id="packet-id"></p><p>This file works offline and sends no data. Share only reviewer-facing files; the private identity mapping is not part of this page. A separate importer will verify exact packet digests, source IDs, and completeness. Empty or blank packets are not completed human annotations.</p></footer>
+<noscript><p>Enable local JavaScript to complete this form, or fill the blank JSON template manually.</p></noscript>
+</main><script id="record" type="application/json" nonce="@@NONCE@@">@@RECORD@@</script><script nonce="@@NONCE@@">
+"use strict";
+const ReviewForm = (() => {
+  const verdicts=new Set(["single","multiple","no_visible_source","ambiguous","unjudgeable"]);
+  function answerErrors(item,answer){
+    const errors=[], selected=Array.isArray(answer.selected_source_ids)?answer.selected_source_ids:[];
+    const available=new Set(item.source_options.map(source=>source.source_id));
+    if(!verdicts.has(answer.verdict))errors.push("Choose a verdict.");
+    if(typeof answer.rationale!=="string"||!answer.rationale.trim())errors.push("Write a rationale.");
+    if(!Array.isArray(answer.selected_source_ids)||selected.some(id=>!available.has(id))||new Set(selected).size!==selected.length)errors.push("Select valid source options.");
+    if(answer.verdict==="single"&&selected.length<1)errors.push("Single-source verdict requires a selected source.");
+    if(answer.verdict==="multiple"&&selected.length<2)errors.push("Multiple-source verdict requires at least two sources.");
+    if(answer.verdict==="no_visible_source"&&selected.length)errors.push("No-visible-source verdict requires no selected sources.");
+    if(answer.evidence_locators!==null&&!Array.isArray(answer.evidence_locators))errors.push("Evidence locators must be a JSON list.");
+    return errors;
+  }
+  function complete(items,answers){return items.filter(item=>answerErrors(item,answers.find(a=>a.item_id===item.item_id)||{}).length===0).length;}
+  function submission(packet,items,answers,reviewer){
+    const errors=[];
+    if(typeof reviewer.identifier!=="string"||!reviewer.identifier.trim())errors.push("Enter a human reviewer identifier.");
+    if(["assistant","chatgpt","gpt","codex","ai","openai"].includes((reviewer.identifier||"").trim().toLowerCase()))errors.push("Automated authorship is not human review.");
+    if(reviewer.independence_attested!==true||reviewer.labels_human_authored!==true)errors.push("Both reviewer attestations are required.");
+    items.forEach((item,index)=>answerErrors(item,answers[index]).forEach(error=>errors.push("Item "+(index+1)+": "+error)));
+    return {errors,labels:{schema_version:1,packet_digest:packet.packet_digest,items_sha256:packet.items_sha256,reviewer,answers:JSON.parse(JSON.stringify(answers))}};
+  }
+  return {answerErrors,complete,submission};
+})();
+// DOM rendering begins here.
+const data=JSON.parse(document.getElementById("record").textContent), items=data.items, answers=data.labels_template.answers;
+const $=id=>document.getElementById(id);let selected=-1;const locatorDrafts={};
+const pretty=value=>JSON.stringify(value,null,2);
+$("packet-id").textContent="Packet digest: "+data.packet.packet_digest+" · "+items.length+" fields.";
+function progress(){
+  $("progress").textContent=ReviewForm.complete(items,answers)+" / "+items.length+" fields have a complete draft annotation.";
+  $("items").replaceChildren();
+  items.forEach((item,index)=>{const button=document.createElement("button");button.className="item";button.setAttribute("aria-pressed",String(index===selected));const title=document.createElement("strong");title.textContent=(index+1)+" · "+item.sink.function;const detail=document.createElement("span");detail.textContent=item.target.argument_path+" · "+(ReviewForm.answerErrors(item,answers[index]).length?"Unanswered / incomplete":"Draft complete");button.append(title,detail);button.addEventListener("click",()=>show(index));$("items").append(button);});
+}
+function save(){
+  if(selected<0)return;
+  const chosen=[...$("sources").querySelectorAll("input:checked")].map(input=>input.value);
+  const raw=$("locators").value;locatorDrafts[items[selected].item_id]=raw;
+  let locators=null;if(raw.trim()){try{locators=JSON.parse(raw);}catch{locators=raw;}}
+  answers[selected]={item_id:items[selected].item_id,verdict:$("verdict").value||null,selected_source_ids:chosen,rationale:$("rationale").value||null,evidence_locators:locators};
+  progress();
+}
+function show(index){
+  selected=index;const item=items[index],answer=answers[index];
+  $("item-title").textContent="Field "+(index+1)+" of "+items.length;$("item-id").textContent=item.item_id;
+  $("sink").textContent=pretty(item.sink);$("target").textContent=pretty(item.target);$("task").textContent=pretty(item.task);$("prefix").textContent=pretty(item.request_prefix);
+  $("sources").replaceChildren();
+  item.source_options.forEach((source,index)=>{const box=document.createElement("div");box.className="source";const label=document.createElement("label");const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.value=source.source_id;checkbox.checked=(answer.selected_source_ids||[]).includes(source.source_id);checkbox.addEventListener("change",save);const name=document.createElement("span");name.textContent="Source "+(index+1)+" · "+source.kind+" · message "+source.message_index;label.append(checkbox,name);const identity=document.createElement("p");identity.className="muted small";identity.textContent=source.source_id+" · "+source.request_pointer;const content=document.createElement("pre");content.textContent=source.text;box.append(label,identity,content);$("sources").append(box);});
+  if(!item.source_options.length){const empty=document.createElement("p");empty.textContent="No visible source options are recorded. Explain whether this is no visible source or unjudgeable."; $("sources").append(empty);}
+  $("verdict").value=answer.verdict||"";$("rationale").value=answer.rationale||"";$("locators").value=locatorDrafts[item.item_id]??(answer.evidence_locators===null?"":pretty(answer.evidence_locators));progress();
+}
+for(const id of ["verdict","rationale","locators"])$(id).addEventListener(id==="verdict"?"change":"input",save);
+$("download").addEventListener("click",()=>{
+  const reviewer={identifier:$("reviewer").value.trim(),independence_attested:$("independent").checked,labels_human_authored:$("human").checked};
+  const result=ReviewForm.submission(data.packet,items,answers,reviewer);
+  if(result.errors.length){$("result").className="error";$("result").textContent=result.errors.join(" ");return;}
+  const blob=new Blob([JSON.stringify(result.labels,null,2)+"\n"],{type:"application/json"}),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download="human-review-labels.json";document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);$("result").className="muted";$("result").textContent="Labels downloaded. Identity and independence are attested, not verified.";
+});
+if(items.length)show(0);else{progress();$("item-title").textContent="No selected sink fields in this packet";$("answer-panel").hidden=true;for(const id of ["sink","target","task","prefix"])$(id).textContent="No review item. No human annotation is inferred.";}
+</script></body></html>

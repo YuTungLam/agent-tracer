@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "method": "decoded_scalar_span_evidence_v1",
+  "authorship": {
+    "author": "Codex",
+    "mode": "handcrafted_engineering_controls",
+    "independent_reference": false,
+    "independent_accuracy": null
+  },
+  "coordinates": "Half-open Unicode codepoint ranges in the decoded source scalar.",
+  "oracle": "Expected LCS lengths and minimum/maximum injected-coordinate counts were fixed using exhaustive enumeration of source and target subsequences on these tiny strings, without importing the diagnostic engine. Literal results were checked directly against full-target occurrences and lexical boundaries. These are engineering expectations, not independent semantic or causal labels.",
+  "cases": [
+    {
+      "id": "benign_only_copy",
+      "source": "SAFE|DROP",
+      "target": "SAFE",
+      "injection_spans": [
+        [
+          5,
+          9
+        ]
+      ],
+      "expected": {
+        "lcs_length": 4,
+        "min_injection_matched_codepoints": 0,
+        "max_injection_matched_codepoints": 0,
+        "region_relation": "none",
+        "literal_occurrence_count": 1,
+        "literal_classification": "outside_only",
+        "low_information_target": false
+      },
+      "purpose": "The complete target comes from the unannotated region; an injected region elsewhere does not make this a match to injected coordinates."
+    },
+    {
+      "id": "injection_only_copy",
+      "source": "SAFE|DROP",
+      "target": "DROP",
+      "injection_spans": [
+        [
+          5,
+          9
+        ]
+      ],
+      "expected": {
+        "lcs_length": 4,
+        "min_injection_matched_codepoints": 4,
+        "max_injection_matched_codepoints": 4,
+        "region_relation": "required_by_all_optimal_alignments",
+        "literal_occurrence_count": 1,
+        "literal_classification": "injection_only",
+        "low_information_target": false
+      },
+      "purpose": "The complete target occurs only inside the annotated region. This establishes lexical location, not harmfulness or causal dependence."
+    },
+    {
+      "id": "mixed_subsequence",
+      "source": "SAFE|DROP",
+      "target": "SAFEDROP",
+      "injection_spans": [
+        [
+          5,
+          9
+        ]
+      ],
+      "expected": {
+        "lcs_length": 8,
+        "min_injection_matched_codepoints": 4,
+        "max_injection_matched_codepoints": 4,
+        "region_relation": "required_by_all_optimal_alignments",
+        "literal_occurrence_count": 0,
+        "literal_classification": "none",
+        "low_information_target": false
+      },
+      "purpose": "Removing a delimiter preserves a full-length subsequence spanning both regions, while the full-target exact matcher correctly emits no hit."
+    },
+    {
+      "id": "literal_crosses_region",
+      "source": "SAFE DROP",
+      "target": "SAFE DROP",
+      "injection_spans": [
+        [
+          5,
+          9
+        ]
+      ],
+      "expected": {
+        "lcs_length": 9,
+        "min_injection_matched_codepoints": 4,
+        "max_injection_matched_codepoints": 4,
+        "region_relation": "required_by_all_optimal_alignments",
+        "literal_occurrence_count": 1,
+        "literal_classification": "mixed",
+        "low_information_target": false
+      },
+      "purpose": "One complete literal occurrence crosses annotated and unannotated coordinates and must retain its mixed classification."
+    },
+    {
+      "id": "shared_short_identifier",
+      "source": "ID 13|ID 13",
+      "target": "13",
+      "injection_spans": [
+        [
+          6,
+          11
+        ]
+      ],
+      "expected": {
+        "lcs_length": 2,
+        "min_injection_matched_codepoints": 0,
+        "max_injection_matched_codepoints": 2,
+        "region_relation": "possible_in_some_optimal_alignments",
+        "literal_occurrence_count": 2,
+        "literal_classification": "ambiguous",
+        "low_information_target": true
+      },
+      "purpose": "An identical identifier occurs in both regions. Preserve competing origins and flag the low-information target."
+    },
+    {
+      "id": "incidental_letters",
+      "source": "TEAM PLAN",
+      "target": "TALL",
+      "injection_spans": [
+        [
+          5,
+          9
+        ]
+      ],
+      "expected": {
+        "lcs_length": 3,
+        "min_injection_matched_codepoints": 1,
+        "max_injection_matched_codepoints": 1,
+        "region_relation": "required_by_all_optimal_alignments",
+        "literal_occurrence_count": 0,
+        "literal_classification": "none",
+        "low_information_target": false
+      },
+      "purpose": "Incidental letters produce LCS ratio 0.75, above the frozen ordinary threshold, despite no complete literal occurrence. An optimal alignment that uses annotated letters is not semantic support."
+    },
+    {
+      "id": "no_overlap",
+      "source": "READ|DROP",
+      "target": "SYNC",
+      "injection_spans": [
+        [
+          5,
+          9
+        ]
+      ],
+      "expected": {
+        "lcs_length": 0,
+        "min_injection_matched_codepoints": 0,
+        "max_injection_matched_codepoints": 0,
+        "region_relation": "none",
+        "literal_occurrence_count": 0,
+        "literal_classification": "none",
+        "low_information_target": false
+      },
+      "purpose": "Disjoint uppercase alphabets produce no observed lexical correspondence. This is not a verdict about unmeasured semantic or control influence."
+    },
+    {
+      "id": "repeated_optimal_paths",
+      "source": "AAAA|AAAA",
+      "target": "AAAA",
+      "injection_spans": [
+        [
+          5,
+          9
+        ]
+      ],
+      "expected": {
+        "lcs_length": 4,
+        "min_injection_matched_codepoints": 0,
+        "max_injection_matched_codepoints": 4,
+        "region_relation": "possible_in_some_optimal_alignments",
+        "literal_occurrence_count": 2,
+        "literal_classification": "ambiguous",
+        "low_information_target": false
+      },
+      "purpose": "Repeated characters create many equally optimal alignments. Returning one arbitrary backtrace would conceal the full zero-to-four range of injected-coordinate matches."
+    },
+    {
+      "id": "unicode_codepoints",
+      "source": "café|🧪GO",
+      "target": "🧪GO",
+      "injection_spans": [
+        [
+          5,
+          8
+        ]
+      ],
+      "expected": {
+        "lcs_length": 3,
+        "min_injection_matched_codepoints": 3,
+        "max_injection_matched_codepoints": 3,
+        "region_relation": "required_by_all_optimal_alignments",
+        "literal_occurrence_count": 1,
+        "literal_classification": "injection_only",
+        "low_information_target": true
+      },
+      "purpose": "An accented letter and a non-BMP emoji each occupy one Python Unicode codepoint. UTF-8 byte offsets and UTF-16 code units must not be substituted."
+    },
+    {
+      "id": "clean_empty_regions",
+      "source": "SAFE DATA",
+      "target": "DATA",
+      "injection_spans": [],
+      "expected": {
+        "lcs_length": 4,
+        "min_injection_matched_codepoints": 0,
+        "max_injection_matched_codepoints": 0,
+        "region_relation": "none",
+        "literal_occurrence_count": 1,
+        "literal_classification": "outside_only",
+        "low_information_target": false
+      },
+      "purpose": "A clean scalar still supports ordinary lexical correspondence; an empty injected-region set is not an absent source."
+    },
+    {
+      "id": "authored_paraphrase",
+      "source": "Send cash",
+      "target": "Pay money",
+      "injection_spans": [
+        [
+          0,
+          9
+        ]
+      ],
+      "expected": {
+        "lcs_length": 1,
+        "min_injection_matched_codepoints": 1,
+        "max_injection_matched_codepoints": 1,
+        "region_relation": "required_by_all_optimal_alignments",
+        "literal_occurrence_count": 0,
+        "literal_classification": "none",
+        "low_information_target": false
+      },
+      "purpose": "An authored paraphrase challenge has no semantic oracle in this diagnostic. The one-character lexical match neither confirms nor rejects meaning-preserving propagation."
+    },
+    {
+      "id": "decoded_newline",
+      "source": "SAFE\nDROP",
+      "target": "DROP",
+      "injection_spans": [
+        [
+          5,
+          9
+        ]
+      ],
+      "expected": {
+        "lcs_length": 4,
+        "min_injection_matched_codepoints": 4,
+        "max_injection_matched_codepoints": 4,
+        "region_relation": "required_by_all_optimal_alignments",
+        "literal_occurrence_count": 1,
+        "literal_classification": "injection_only",
+        "low_information_target": false
+      },
+      "purpose": "The decoded newline consumes one codepoint even though its JSON spelling is escaped. Native adapter controls separately verify enclosing wire-token references."
+    }
+  ]
+}

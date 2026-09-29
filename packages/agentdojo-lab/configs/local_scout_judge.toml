@@ -1,0 +1,5 @@
+# For dojo-lab counterfactual --live --judge-config configs/local_scout_judge.toml
+provider = "openai_compatible"
+model = "llama-4-scout-local"
+base_url = "http://127.0.0.1:8000/v1"
+api_key_env = "LOCAL_LLM_API_KEY"

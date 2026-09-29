@@ -1,0 +1,113 @@
+<svg class="agent-flow" viewBox="0 0 1060 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="agent-flow-title agent-flow-description">
+  <title id="agent-flow-title">AgentDojo execution components and loop</title>
+  <desc id="agent-flow-description">The task and environment enter AgentPipeline. The adapter sends history to the model interface; parsed responses flow through the tool executor and runtime. Tool results return to history for the next request. The native evaluator evaluates the returned pipeline. A passive observer records events, and HTML is generated after the run. The selected timeline event determines the highlight.</desc>
+  <defs>
+    <marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker>
+  </defs>
+  <g class="flow-edges" fill="none" marker-end="url(#flow-arrow)">
+    <path data-flow-edge="runner_task" class="context-edge" d="M140 76 V110"/>
+    <path data-flow-edge="task_pipeline" d="M250 152 H280"/>
+    <path data-flow-edge="pipeline_history" d="M500 152 H530"/>
+    <path data-flow-edge="history_request" d="M750 152 H780"/>
+    <path data-flow-edge="request_api" d="M890 194 V246"/>
+    <path data-flow-edge="api_parse" d="M780 288 H750"/>
+    <path data-flow-edge="parse_executor" d="M530 288 H500"/>
+    <path data-flow-edge="executor_runtime" d="M280 288 H250"/>
+    <path data-flow-edge="runtime_environment" d="M140 330 V378" marker-start="url(#flow-arrow)"/>
+    <path data-flow-edge="runtime_result" d="M220 330 V352 H390 V378"/>
+    <path data-flow-edge="executor_error_result" class="context-edge" d="M425 330 V378"/>
+    <path data-flow-edge="executor_exit" class="context-edge" d="M470 330 V352 H640 V378"/>
+    <path data-flow-edge="result_history" d="M390 462 V492 H1030 V96 H640 V110"/>
+    <path data-flow-edge="exit_evaluate" class="context-edge" d="M750 420 H780"/>
+    <path data-flow-edge="retry_pipeline" class="context-edge" d="M640 462 V508 H12 V96 H390 V110"/>
+    <path data-flow-edge="evaluate_report" class="context-edge" d="M890 462 V546"/>
+    <path data-flow-edge="recorder_report" class="context-edge" d="M500 582 H530"/>
+  </g>
+  <g class="flow-annotations">
+    <text x="904" y="226">Request</text>
+    <text x="765" y="273" text-anchor="middle">Response</text>
+    <text x="156" y="360">Read / write</text>
+    <text x="305" y="347" text-anchor="middle">After the batch</text>
+    <text x="434" y="369">Unknown tool</text>
+    <text x="568" y="347" text-anchor="middle">Loop exit</text>
+    <text x="747" y="487" text-anchor="middle">Tool messages enter history and the next request</text>
+    <text x="150" y="530">No final text: up to 3 attempts</text>
+    <text x="995" y="530" text-anchor="end">Evaluation / summary</text>
+  </g>
+  <g data-flow-node="runner" class="flow-node flow-runner">
+    <title>The runner manages benchmark execution, native logs, and result summaries. RUN_END status is not task utility.</title>
+    <rect x="30" y="18" width="970" height="58" rx="9"/>
+    <text x="50" y="43" class="flow-label">Experiment runner</text><text x="240" y="43" class="flow-sub">benchmark · OutputLogger · run summary</text>
+    <text x="50" y="65" class="flow-sub">RUN_STARTED / RUN_END</text>
+  </g>
+  <g data-flow-node="task" class="flow-node flow-context">
+    <title>AgentDojo supplies the user task, initial environment, tool set, and evaluation rules. This initialization has no dedicated runtime event.</title>
+    <rect x="30" y="110" width="220" height="84" rx="9"/>
+    <text x="45" y="143" class="flow-label">Task / initial state</text><text x="45" y="172" class="flow-sub">suite · prompt · tools</text>
+  </g>
+  <g data-flow-node="pipeline" class="flow-node">
+    <title>Each complete query is an episode. EPISODE_STARTED occurs before system-prompt and user-query initialization.</title>
+    <rect x="280" y="110" width="220" height="84" rx="9"/>
+    <text x="295" y="143" class="flow-label">AgentPipeline</text><text x="295" y="172" class="flow-sub">Prompt / query setup</text>
+  </g>
+  <g data-flow-node="history" class="flow-node">
+    <title>Stores system, user, assistant, and tool messages. Tool results in history may be included in multiple requests.</title>
+    <rect x="530" y="110" width="220" height="84" rx="9"/>
+    <text x="545" y="143" class="flow-label">Message history</text><text x="545" y="172" class="flow-sub">messages / context</text>
+  </g>
+  <g data-flow-node="request" class="flow-node">
+    <title>The Groq adapter converts native messages and tool definitions. The observer records the actual JSON body at the outbound HTTP boundary.</title>
+    <rect x="780" y="110" width="220" height="84" rx="9"/>
+    <text x="795" y="143" class="flow-label">Request adapter</text><text x="795" y="172" class="flow-sub">GroqLLM · HTTP body</text>
+  </g>
+  <g data-flow-node="runtime" class="flow-node">
+    <title>FunctionsRuntime validates arguments, fills defaults, and injects dependencies before calling local tools. Entry arguments and raw returns have separate events.</title>
+    <rect x="30" y="246" width="220" height="84" rx="9"/>
+    <text x="45" y="279" class="flow-label">Tool runtime</text><text x="45" y="308" class="flow-sub">FunctionsRuntime</text>
+  </g>
+  <g data-flow-node="executor" class="flow-node flow-context">
+    <title>ToolsExecutionLoop checks whether to continue. ToolsExecutor validates tool names, adjusts argument formatting, and executes batches. There is no separate executor-entry event.</title>
+    <rect x="280" y="246" width="220" height="84" rx="9"/>
+    <text x="295" y="279" class="flow-label">Tool loop / executor</text><text x="295" y="308" class="flow-sub">ToolsExecutor</text>
+  </g>
+  <g data-flow-node="parse" class="flow-node">
+    <title>Converts the HTTP response into a native assistant message and records proposed tool calls. These proposals have not executed yet.</title>
+    <rect x="530" y="246" width="220" height="84" rx="9"/>
+    <text x="545" y="279" class="flow-label">Parse / propose</text><text x="545" y="308" class="flow-sub">assistant · tool calls</text>
+  </g>
+  <g data-flow-node="api" class="flow-node">
+    <title>Only request and response boundaries are recorded. The model's internal reasoning and actual attention cannot be determined here.</title>
+    <rect x="780" y="246" width="220" height="84" rx="9"/>
+    <text x="795" y="279" class="flow-label" id="flow-api-label">Model API</text><text x="795" y="308" class="flow-sub" id="flow-api-sub">HTTP boundaries only</text>
+  </g>
+  <g data-flow-node="environment" class="flow-node">
+    <title>Simulates email, calendars, cloud storage, and other environments. ENVIRONMENT_CHANGE indicates a state change across a tool call; environment snapshots are not model input.</title>
+    <rect x="30" y="378" width="220" height="84" rx="9"/>
+    <text x="45" y="411" class="flow-label">Simulated tool state</text><text x="45" y="440" class="flow-sub">Read / update env</text>
+  </g>
+  <g data-flow-node="result" class="flow-node">
+    <title>After a batch completes, the executor formats returns or errors as tool messages and adds them to history. Unknown tools may produce error messages without entering the runtime.</title>
+    <rect x="280" y="378" width="220" height="84" rx="9"/>
+    <text x="295" y="411" class="flow-label">Tool result → history</text><text x="295" y="440" class="flow-sub">Formatted TOOL_RESULT</text>
+  </g>
+  <g data-flow-node="exit" class="flow-node">
+    <title>A pipeline return or error does not establish task completion; calls may still be pending. The suite reruns the pipeline if needed, up to three attempts in total.</title>
+    <rect x="530" y="378" width="220" height="84" rx="9"/>
+    <text x="545" y="411" class="flow-label">Pipeline return</text><text x="545" y="440" class="flow-sub">Text / pending calls / error</text>
+  </g>
+  <g data-flow-node="evaluator" class="flow-node flow-context">
+    <title>The native evaluator assesses utility after the pipeline and any required retries. There is no dedicated evaluator event; this node provides architectural context.</title>
+    <rect x="780" y="378" width="220" height="84" rx="9"/>
+    <text x="795" y="411" class="flow-label">Native evaluator</text><text x="795" y="440" class="flow-sub">utility · no dedicated event</text>
+  </g>
+  <g data-flow-node="recorder" class="flow-node flow-context">
+    <title>ObservationSession and EventRecorder passively record events at these boundaries without modifying or intercepting agent actions.</title>
+    <rect x="30" y="546" width="470" height="68" rx="9"/>
+    <text x="45" y="574" class="flow-label">Observer → events.jsonl</text><text x="45" y="601" class="flow-sub">Observes execution boundaries; does not decide actions</text>
+  </g>
+  <g data-flow-node="report" class="flow-node flow-context">
+    <title>After the run, reads the summary, native conversations, and events to generate HTML that opens offline. This process has no dedicated runtime event.</title>
+    <rect x="530" y="546" width="470" height="68" rx="9"/>
+    <text x="545" y="574" class="flow-label">After the run → local HTML report</text><text x="545" y="601" class="flow-sub">Original records · configuration · audit · execution review</text>
+  </g>
+</svg>

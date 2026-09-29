@@ -1,0 +1,11 @@
+provider = "groq"
+model = "openai/gpt-oss-120b"
+benchmark_version = "v1.2.2"
+suite = "workspace"
+user_tasks = ["user_task_0"]
+temperature = 0.0
+reasoning_effort = "low"
+max_completion_tokens = 4096
+max_tool_rounds = 8
+request_timeout_seconds = 60.0
+record_events = true

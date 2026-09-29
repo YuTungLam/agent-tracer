@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "protocol": "scout-multi-candidate-identical-judge-replay-v1",
+  "scope": "Confirmatory repeated no-tools predictions and one-step same-prefix replay proposals for the complete structurally selected four-probe set; no tool execution, whole-task outcome, hidden causality, population accuracy, or standalone research-gap claim.",
+  "selection_rule": "Include every kind=single_source probe at event:00000030 with sink get_unread_emails and empty arguments in the archived conditional_action r01/r02 both-source runs; selection is frozen without reference to archived or prospective judge/replay outcomes.",
+  "sources": [
+    {
+      "candidate_id": "r01-source-a",
+      "plan_export": "reports/20260910-attack-followups-live-v1/conditional_action-r01-both/plans",
+      "plans_sha256": "d797a57fd5e1b16c7cee63994699b933dae26322bc20bccf80c485c3858892f9",
+      "source_run": "runs/20260910-attack-factorial-recovered-v1/runs/conditional_action-r01-both",
+      "run_id": "conditional_action-r01-both",
+      "proposal_event_id": "event:00000030",
+      "probe_id": "probe-v2:90e105eff2c03004bc4347f4b39fd055a4290ec061b235832aebf0626f3006d8",
+      "probe_binding_sha256": "90e105eff2c03004bc4347f4b39fd055a4290ec061b235832aebf0626f3006d8"
+    },
+    {
+      "candidate_id": "r01-source-b",
+      "plan_export": "reports/20260910-attack-followups-live-v1/conditional_action-r01-both/plans",
+      "plans_sha256": "d797a57fd5e1b16c7cee63994699b933dae26322bc20bccf80c485c3858892f9",
+      "source_run": "runs/20260910-attack-factorial-recovered-v1/runs/conditional_action-r01-both",
+      "run_id": "conditional_action-r01-both",
+      "proposal_event_id": "event:00000030",
+      "probe_id": "probe-v2:40da3b5551cc859c9a5c9b9703df09a397519ff426aa19addd3cec9c5f588481",
+      "probe_binding_sha256": "40da3b5551cc859c9a5c9b9703df09a397519ff426aa19addd3cec9c5f588481"
+    },
+    {
+      "candidate_id": "r02-source-a",
+      "plan_export": "reports/20260910-attack-followups-live-v1/conditional_action-r02-both/plans",
+      "plans_sha256": "f7c3f3e0330be2d570a0ee7ed1dcae5f15e526fe64acca62705580a9d3992002",
+      "source_run": "runs/20260910-attack-factorial-recovered-v1/runs/conditional_action-r02-both",
+      "run_id": "conditional_action-r02-both",
+      "proposal_event_id": "event:00000030",
+      "probe_id": "probe-v2:049799f0ddaea6f9eeb2cce1efc088cd63dbc98387b5536e7dce05517378ee66",
+      "probe_binding_sha256": "049799f0ddaea6f9eeb2cce1efc088cd63dbc98387b5536e7dce05517378ee66"
+    },
+    {
+      "candidate_id": "r02-source-b",
+      "plan_export": "reports/20260910-attack-followups-live-v1/conditional_action-r02-both/plans",
+      "plans_sha256": "f7c3f3e0330be2d570a0ee7ed1dcae5f15e526fe64acca62705580a9d3992002",
+      "source_run": "runs/20260910-attack-factorial-recovered-v1/runs/conditional_action-r02-both",
+      "run_id": "conditional_action-r02-both",
+      "proposal_event_id": "event:00000030",
+      "probe_id": "probe-v2:640c38156b9bdbdc71a38ed9f66c2ad6a9c278dd0e674cbae7bcf7699ceb4498",
+      "probe_binding_sha256": "640c38156b9bdbdc71a38ed9f66c2ad6a9c278dd0e674cbae7bcf7699ceb4498"
+    }
+  ],
+  "support": {
+    "conditional_action-r01-both": {
+      "judge": {
+        "path": "reports/20260910-semantic-audit-live-v1/conditional_action-r01-both/judgments.jsonl",
+        "sha256": "ed3030fbaf70904a83531483cd7e2841d7c1a68a4d410d7730eb5a4f0951c39e"
+      },
+      "replay": {
+        "path": "reports/20260910-attack-followups-live-v1/conditional_action-r01-both/replay/summary.json",
+        "sha256": "904c154122fddb06686cf9149fc6c42815b752fd3154054180e21d6ad36c4626"
+      }
+    },
+    "conditional_action-r02-both": {
+      "judge": {
+        "path": "reports/20260910-semantic-audit-live-v1/conditional_action-r02-both/judgments.jsonl",
+        "sha256": "565abfd35e67b4e3f266229496d7cc57f927d40bcf13c0105a1a5e16eda17134"
+      },
+      "replay": {
+        "path": "reports/20260910-attack-followups-live-v1/conditional_action-r02-both/replay/summary.json",
+        "sha256": "4630e400a4fb2fed902dab63e395f957f7b21cdd752ab7077e28402162b4aa3c"
+      }
+    }
+  },
+  "endpoints": {
+    "replay": {
+      "provider": "openai_compatible",
+      "model": "llama-4-scout-local",
+      "base_url": "http://127.0.0.1:8000/v1",
+      "api_key_env": "LOCAL_LLM_API_KEY"
+    },
+    "judge": {
+      "provider": "openai_compatible",
+      "model": "llama-4-scout-local",
+      "base_url": "http://127.0.0.1:8000/v1",
+      "api_key_env": "LOCAL_LLM_API_KEY"
+    }
+  },
+  "request_settings": {
+    "model": "llama-4-scout-local",
+    "temperature": 0.0,
+    "max_completion_tokens": 2048,
+    "reasoning_effort": null,
+    "judgment_format": "english_punctuation_v1"
+  },
+  "limits": {
+    "candidates": 4,
+    "repetitions_per_candidate": 3,
+    "sham_replay_requests": 12,
+    "neutralized_replay_requests": 12,
+    "isolated_judge_requests": 12,
+    "total_requests": 36,
+    "sdk_max_retries": 0,
+    "request_timeout_seconds": 180.0,
+    "native_tool_executions": 0,
+    "silent_retries_or_replacements": 0
+  },
+  "ordering": "Round-robin by repetition and frozen candidate order. Odd repetitions: sham, neutralized, judge. Even repetitions: neutralized, sham, judge. Every slot is attempted at most once."
+}

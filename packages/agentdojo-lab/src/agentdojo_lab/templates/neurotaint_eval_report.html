@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-@@NONCE@@'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>NeuroTaint testbed evaluation</title>
+<style>
+:root{color-scheme:light;--ink:#17283a;--muted:#587086;--line:#d7e1eb;--paper:#fff;--canvas:#f2f6fa;--navy:#173b63;--blue:#2474b5;--cyan:#3e9fa8;--good:#16705b;--warn:#946215;--bad:#a53c45;--unknown:#667788}*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}header{padding:24px 30px;background:linear-gradient(120deg,#132d49,#245c83);color:#fff}h1{font-size:25px;line-height:1.25;margin:0 0 5px}h2{font-size:19px;margin:0 0 12px}h3{font-size:16px;margin:0 0 9px}.shell{max-width:1600px;margin:auto;padding:22px}.muted{color:var(--muted)}header .muted{color:#cfdeeb}.small{font-size:13px}.mono{font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.notice{background:#eaf4fb;border-left:4px solid var(--blue);padding:12px 15px;margin:0 0 18px}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}.metric,.card{background:var(--paper);border:1px solid var(--line);border-radius:9px}.metric{padding:13px 15px;border-top:3px solid var(--blue)}.metric strong{display:block;font-size:24px;line-height:1.3;margin:3px 0}.card{padding:17px;margin-bottom:18px;overflow:hidden}.split{display:grid;grid-template-columns:1fr 1fr;gap:18px}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 11px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f3f7fa;color:#425d75;white-space:nowrap}td.nowrap{white-space:nowrap}.tag{display:inline-block;border-radius:999px;padding:2px 8px;background:#edf1f5;color:var(--unknown);white-space:nowrap}.good{background:#e1f3eb;color:var(--good)}.bad{background:#fae5e7;color:var(--bad)}.warn{background:#fff0d4;color:var(--warn)}.unknown{background:#edf1f5;color:var(--unknown)}a{color:#155f9d;text-decoration:none}a:hover{text-decoration:underline}a:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #57a2df;outline-offset:2px}.filters{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.filters label{display:flex;align-items:center;gap:7px}.filters input,.filters select{border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;color:var(--ink);font:inherit}.filters input{width:280px;max-width:100%}.links{display:flex;gap:15px;flex-wrap:wrap;margin:7px 0 14px}.empty{padding:24px;text-align:center;color:var(--muted)}.funnel{display:grid;gap:8px}.funnel-row{display:grid;grid-template-columns:minmax(150px,1.2fr) 3fr minmax(90px,.7fr);gap:10px;align-items:center}.funnel-track{height:20px;border-radius:5px;background:#edf2f7;overflow:hidden}.funnel-bar{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--cyan))}.funnel-value{text-align:right}.definition{margin:10px 0 0;border-left:3px solid #a9c0d5;padding-left:11px;color:var(--muted);font-size:13px}details{border-top:1px solid var(--line);padding:10px 0}summary{cursor:pointer;font-weight:600}pre{background:#f3f6f9;padding:12px;max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.key-value{display:grid;grid-template-columns:minmax(190px,1fr) 2fr;gap:0}.key-value div{padding:7px 9px;border-bottom:1px solid var(--line)}.key-value .key{color:#425d75;background:#f7f9fb}.raw{max-width:360px}.screen-only{display:initial}@media(max-width:960px){.metrics{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}.shell{padding:12px}header{padding:19px}.card{padding:12px}.funnel-row{grid-template-columns:1fr}.funnel-value{text-align:left}}@media print{body{background:#fff}.shell{max-width:none;padding:0}.card,.metric{break-inside:avoid}.filters,.screen-only{display:none}.metrics{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<header><h1 id="title">NeuroTaint testbed evaluation</h1><div id="subtitle" class="small muted"></div></header>
+<main class="shell">
+<p class="notice"><strong>Read-only normalized results.</strong> Every scientific outcome, denominator, and attribution label shown here comes from the input summary. The renderer does not infer ground truth from detector output. Missing values remain unavailable.</p>
+<section class="metrics" id="overview" aria-label="Evaluation overview"></section>
+
+<section class="card"><h2>Completeness matrix</h2><p class="small muted">Each scheduled slot remains visible. Select an available run to open its event timeline and agent diagram.</p><div class="scroll"><table><thead id="matrix-head"></thead><tbody id="matrix-body"></tbody></table></div><p class="definition">A missing trial row is displayed as “No result recorded.” This indicates artifact availability only; it is not scored as a failed outcome.</p></section>
+
+<section class="card"><h2>Security, utility, exposure, and attribution</h2><div class="scroll"><table><thead><tr><th>Measurement</th><th>Supplied value</th><th>Numerator / denominator</th><th>Unknown</th><th>Status or scope</th></tr></thead><tbody id="outcome-metrics"></tbody></table></div><p class="definition">Precision, recall, and F1 display “Unavailable” when the normalized input does not provide independent reference labels.</p></section>
+
+<section class="card"><h2>Scenario-family outcomes</h2><p class="small muted">Scenario-family values and Wilson intervals are displayed only when supplied by the normalized analysis.</p><div class="scroll"><table><thead><tr><th>Measurement</th><th>Rate</th><th>Numerator / denominator</th><th>Wilson 95% interval</th><th>Unknown</th><th>Independent unit</th></tr></thead><tbody id="scenario-metrics"></tbody></table></div></section>
+
+<section class="split">
+<section class="card"><h2>Attribution availability</h2><div id="attribution-availability" class="key-value"></div><p class="definition">Scored, abstention, unavailable, error, and unknown-reference counts use the supplied controlled-reference accounting.</p></section>
+<section class="card"><h2>Ordered attribution routing</h2><div id="attribution-routing" class="key-value"></div><p class="definition">Stage entry and first-hit distributions describe ordered routing; they do not establish attribution correctness.</p></section>
+</section>
+
+<section class="split">
+<section class="card"><h2>Routing funnel</h2><div id="routing-funnel" class="funnel"></div><p class="definition">Counts and denominators are supplied by the input producer. A stage count is routing coverage, not attribution accuracy.</p></section>
+<section class="card"><h2>Causal reachability and validity</h2><div id="causal-metrics" class="key-value"></div><p class="definition">Reachability, judge attempts, valid judgments, predicted-control decisions, and before-runtime receipts remain separate measurements.</p></section>
+</section>
+
+<section class="split">
+<section class="card"><h2>Controlled causal panel</h2><div id="controlled-causal-link" class="links"></div><div id="controlled-causal-summary" class="key-value"></div><p class="definition">Construction references, observed same-prefix replay labels, and judge predictions remain separate. Missing panel measurements are never inferred.</p></section>
+<section class="card"><h2>Native exact-prefix replay</h2><div id="native-replay-link" class="links"></div><div id="native-replay-summary" class="key-value"></div><p class="definition">These values describe one next-decision replay under the saved and structurally neutralized prefixes. They do not label hidden model causality.</p></section>
+</section>
+
+<section class="split">
+<section class="card"><h2>Latency</h2><div id="latency-metrics" class="key-value"></div><p class="definition">Timing scopes may overlap. This page does not sum them or infer tracer overhead.</p></section>
+<section class="card"><h2>Requests and tokens</h2><div id="token-metrics" class="key-value"></div><p class="definition">Unknown provider usage is not estimated.</p></section>
+</section>
+
+<section class="card"><h2>Unknown and failure accounting</h2><div class="split"><div id="unknown-metrics" class="key-value"></div><div class="scroll"><table><thead><tr><th>Trial</th><th>Type</th><th>Detail</th></tr></thead><tbody id="failures"></tbody></table></div></div></section>
+
+<section class="card"><h2>Trial ledger</h2><div class="filters screen-only"><label>Search <input id="trial-search" type="search" placeholder="Trial, scenario, condition, or status"></label><label>Status <select id="trial-filter"><option value="">All</option><option value="complete">Complete</option><option value="failure">Failure</option><option value="unknown">Unknown or incomplete</option></select></label><span id="trial-count" class="small muted"></span></div><div class="scroll"><table><thead><tr><th>Trial</th><th>Scenario / condition</th><th>Status</th><th>Utility</th><th>Attack success</th><th>Exposure</th><th>Attribution</th><th>Routing</th><th>Causal</th><th>Latency / tokens</th></tr></thead><tbody id="trial-ledger"></tbody></table></div></section>
+
+<section class="card"><h2>Proposal ledger</h2><div class="filters screen-only"><label>Search <input id="proposal-search" type="search" placeholder="Proposal, trial, source, sink, or decision"></label><span id="proposal-count" class="small muted"></span></div><div class="scroll"><table><thead><tr><th>Proposal / run</th><th>Source → sink</th><th>Attribution</th><th>Routing</th><th>Causal eligibility</th><th>Judgment / validity</th><th>Latency / judge tokens</th></tr></thead><tbody id="proposal-ledger"></tbody></table></div></section>
+
+<section class="card"><h2>Exports and input contract</h2><div class="links"><a href="trials.csv" download>Download trial rows (CSV)</a><a href="proposals.jsonl" download>Download proposal rows (JSONL)</a></div><details><summary>Normalized plan schedule</summary><pre id="plan-json"></pre></details><details><summary>Supplied aggregate summary</summary><pre id="summary-json"></pre></details><p class="small muted">The HTML contains its data and scripts for offline review. Keep this file beside the exported row files and preserve linked run directories to use drill-down links.</p></section>
+</main>
+<script type="application/json" id="record" nonce="@@NONCE@@">@@RECORD@@</script>
+<script nonce="@@NONCE@@">
+"use strict";
+const data=JSON.parse(document.getElementById("record").textContent);
+const $=id=>document.getElementById(id);
+const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined&&text!==null)node.textContent=String(text);if(cls)node.className=cls;return node;};
+const own=(object,key)=>object&&typeof object==="object"&&Object.prototype.hasOwnProperty.call(object,key);
+const first=(object,keys)=>{for(const key of keys)if(own(object,key))return object[key];return null;};
+const words=value=>String(value??"").replace(/_/g," ").replace(/\b\w/g,char=>char.toUpperCase());
+const scalar=value=>value===null||value===undefined?"Unavailable":value===true?"Yes":value===false?"No":typeof value==="number"?Number.isInteger(value)?String(value):String(Number(value.toFixed(6))):typeof value==="string"?value:JSON.stringify(value);
+const rate=value=>typeof value==="number"?(value*100).toFixed(1).replace(/\.0$/,"")+"%":scalar(value);
+const compact=value=>value===null||value===undefined?"Unavailable":typeof value==="object"?JSON.stringify(value):scalar(value);
+const metricRate=value=>value&&typeof value==="object"&&own(value,"rate")?rate(value.rate):scalar(value);
+const ratio=value=>value&&typeof value==="object"&&(own(value,"numerator")||own(value,"denominator"))?scalar(value.numerator)+" / "+scalar(value.denominator):"—";
+const unknown=value=>value&&typeof value==="object"&&own(value,"unknown_count")?scalar(value.unknown_count):"—";
+const safeHref=value=>typeof value==="string"&&value.length>0&&!/^[a-z][a-z0-9+.-]*:/i.test(value)&&!value.startsWith("//")&&!value.includes("?")&&/\.html(?:#[A-Za-z0-9._~=&%+-]*)?$/.test(value);
+function linkFor(row,label,cls){const href=row&&row._report_href;if(!safeHref(href))return el("span",label,cls);const link=el("a",label,cls);link.href=href;return link;}
+function objectOrEmpty(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function statusClass(value){const text=String(value??"").toLowerCase();if(["completed","complete","evaluated","passed","valid","success"].includes(text))return "good";if(["failed","failure","error","timeout","timed_out","invalid"].includes(text))return "bad";if(["pending","unknown","incomplete","unstarted","unavailable"].includes(text))return "unknown";return "warn";}
+function addKeyValues(target,value){const object=objectOrEmpty(value),entries=Object.entries(object);target.replaceChildren();if(!entries.length){target.append(el("div","No supplied measurements.","empty"));return;}for(const [key,item] of entries){target.append(el("div",words(key),"key"),el("div",compact(item),"mono"));}}
+function experimentSummary(value,keys){const source=objectOrEmpty(value),result={};for(const key of keys)if(own(source,key))result[key]=source[key];return result;}
+function renderExperiment(value,summaryId,linkId,keys,label){const source=objectOrEmpty(value);addKeyValues($(summaryId),experimentSummary(source,keys));const linkTarget=$(linkId);linkTarget.replaceChildren();if(safeHref(source._report_href)){const link=el("a",label);link.href=source._report_href;linkTarget.append(link);}}
+
+const title=typeof data.title==="string"?data.title:"NeuroTaint testbed evaluation";
+$("title").textContent=title;
+const plan=objectOrEmpty(data.plan),counts=objectOrEmpty(data.counts),metrics=objectOrEmpty(data.metrics);
+const subtitle=[data.batch_id||plan.batch_id,data.model,data.generated_at].filter(value=>typeof value==="string"&&value).join(" · ");
+$("subtitle").textContent=subtitle;
+const overview=[
+ ["Planned trials",first(counts,["planned","planned_trials"])],
+ ["Completed trials",first(counts,["completed","completed_trials"])],
+ ["Unknown or incomplete",first(counts,["unknown","unknown_trials","unknown_evaluation"])],
+ ["Failed trials",first(counts,["failed","failed_trials","process_failed"])],
+ ["Utility",first(metrics,["utility","task_utility"])],
+ ["Attack success rate (ASR)",first(metrics,["attack_success_rate","attack_goal_success","asr"])],
+ ["Exposure-conditioned ASR",first(metrics,["exposure_conditioned_attack_success","conditional_attack_goal_success"])],
+ ["Payload exposure",first(metrics,["exposure","payload_exposure","payload_exposed"])],
+ ["Safe and useful",first(metrics,["safe_useful_joint"])??first(objectOrEmpty(data.scenario_family_metrics),["safe_useful_joint"])],
+ ["Causal valid judgments",first(objectOrEmpty(data.causal||data.causal_metrics),["valid","valid_judgments","valid_judgment_count"])]
+];
+for(const [label,value] of overview){const card=el("div",null,"metric");card.append(el("span",label,"small muted"),el("strong",metricRate(value)),el("span",ratio(value)==="—"?"Supplied aggregate":ratio(value),"small muted"));$("overview").append(card);}
+
+const outcomeRows=[];
+function addOutcome(label,value,scope){outcomeRows.push([label,value,scope]);}
+addOutcome("Utility",first(metrics,["utility","task_utility"]),"");
+addOutcome("Attack success rate (ASR)",first(metrics,["attack_success_rate","attack_goal_success","asr"]),"");
+addOutcome("Exposure-conditioned ASR",first(metrics,["exposure_conditioned_attack_success","conditional_attack_goal_success"]),"");
+addOutcome("Payload exposure",first(metrics,["exposure","payload_exposure","payload_exposed"]),"");
+const directSafeUseful=first(metrics,["safe_useful_joint"]),scenarioSafeUseful=first(objectOrEmpty(data.scenario_family_metrics),["safe_useful_joint"]);
+addOutcome("Safe and useful joint outcome",directSafeUseful??scenarioSafeUseful,directSafeUseful===null||directSafeUseful===undefined?"scenario-family aggregate":"");
+const attribution=data.attribution_accuracy===null?{}:objectOrEmpty(data.attribution_accuracy||data.attribution||metrics.attribution);
+for(const key of ["precision","recall","f1","balanced_accuracy","scored_coverage"])addOutcome("Attribution "+words(key),first(attribution,[key]),attribution.status||attribution.scope||attribution.metric_scope||"");
+for(const [label,value,scope] of outcomeRows){const tr=el("tr");tr.append(el("td",label),el("td",metricRate(value)),el("td",ratio(value)),el("td",unknown(value)),el("td",scope||"—","small muted"));$("outcome-metrics").append(tr);}
+
+const scenarioMetrics=objectOrEmpty(data.scenario_family_metrics);
+const scenarioRows=[];
+for(const [key,value] of Object.entries(scenarioMetrics)){if(value&&typeof value==="object"&&!Array.isArray(value)&&(own(value,"rate")||own(value,"numerator")||own(value,"wilson_95")))scenarioRows.push([key,value]);}
+if(!scenarioRows.length){const tr=el("tr"),td=el("td","No scenario-family metrics were supplied.","empty");td.colSpan=6;tr.append(td);$("scenario-metrics").append(tr);}else for(const [key,value] of scenarioRows){const interval=objectOrEmpty(value.wilson_95),lower=interval.lower,upper=interval.upper,intervalText=typeof lower==="number"&&typeof upper==="number"?rate(lower)+" to "+rate(upper):"Unavailable",tr=el("tr");tr.append(el("td",words(key)),el("td",metricRate(value)),el("td",ratio(value)),el("td",intervalText),el("td",unknown(value)),el("td",scenarioMetrics.independent_unit||value.independent_unit||"—","small muted"));$("scenario-metrics").append(tr);}
+
+addKeyValues($("attribution-availability"),attribution.availability_accounting);
+addKeyValues($("attribution-routing"),attribution.ordered_cascade_distribution);
+
+const schedule=Array.isArray(plan.schedule)?plan.schedule:[],trials=Array.isArray(data.trials)?data.trials:[],proposals=Array.isArray(data.proposals)?data.proposals:[];
+const trialId=row=>String(first(row,["trial_id","id"])??"");
+const scenario=row=>String(first(row,["scenario_id","case_id","task_id","scenario"])??"Unspecified scenario");
+const condition=row=>String(first(row,["condition","arm","variant"])??"Unspecified");
+const repetition=row=>first(row,["repeat","repetition","replicate"])??1;
+const byTrial=new Map(trials.map(row=>[trialId(row),row]));
+const repeats=[...new Set(schedule.map(repetition))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
+const groups=new Map();for(const slot of schedule){const key=scenario(slot)+"\u0000"+condition(slot);if(!groups.has(key))groups.set(key,{scenario:scenario(slot),condition:condition(slot),slots:new Map()});groups.get(key).slots.set(String(repetition(slot)),slot);}
+const head=el("tr");head.append(el("th","Scenario"),el("th","Condition"));for(const repeat of repeats)head.append(el("th","Repetition "+repeat));$("matrix-head").append(head);
+if(!schedule.length){const tr=el("tr"),td=el("td","No plan schedule was supplied.","empty");td.colSpan=3;tr.append(td);$("matrix-body").append(tr);}else for(const group of groups.values()){const tr=el("tr");tr.append(el("td",group.scenario,"mono"),el("td",group.condition));for(const repeat of repeats){const slot=group.slots.get(String(repeat)),cell=el("td");if(!slot){cell.append(el("span","Not scheduled","tag unknown"));}else{const row=byTrial.get(trialId(slot));if(!row){cell.append(el("span","No result recorded","tag unknown"));}else{const status=first(row,["status","run_status","evaluation_status"])??"Unknown";cell.append(linkFor(row,words(status),"tag "+statusClass(status)));} }tr.append(cell);}$("matrix-body").append(tr);}
+
+const funnelSource=data.routing_funnel;
+let funnel=[];
+if(Array.isArray(funnelSource))funnel=funnelSource.map((value,index)=>typeof value==="object"&&value!==null?value:{stage:"Stage "+(index+1),value});
+else if(funnelSource&&typeof funnelSource==="object")funnel=Object.entries(funnelSource).map(([stage,value])=>typeof value==="object"&&value!==null?{stage,...value}:{stage,value});
+if(!funnel.length)$("routing-funnel").append(el("div","No routing funnel was supplied.","empty"));
+for(const row of funnel){const count=first(row,["count","value","known_sum","numerator"]),denominator=first(row,["denominator","eligible","total"]),unknownCount=first(row,["unknown_count","unknown"]),suppliedRate=first(row,["rate"]),fraction=typeof suppliedRate==="number"&&Number.isFinite(suppliedRate)?suppliedRate:typeof count==="number"&&Number.isFinite(count)&&typeof denominator==="number"&&Number.isFinite(denominator)&&denominator>0?count/denominator:null,line=el("div",null,"funnel-row"),track=el("div",null,"funnel-track"),bar=el("div",null,"funnel-bar"),label=row.label||words(row.stage||row.name||"Stage");bar.style.width=fraction===null?"0":Math.max(count>0?1:0,Math.min(100,100*fraction))+"%";track.append(bar);line.append(el("div",label),track,el("div",scalar(count)+(denominator===null||denominator===undefined?"":" / "+scalar(denominator))+(unknownCount===null||unknownCount===undefined?"":" · unknown "+scalar(unknownCount)),"funnel-value mono"));$("routing-funnel").append(line);}
+
+addKeyValues($("causal-metrics"),data.causal||data.causal_metrics||data.causal_reachability);
+renderExperiment(data.controlled_causal_panel,"controlled-causal-summary","controlled-causal-link",["status","protocol","panel_id","scope","planned_operations","result_operations","request_count","observed_replay_operations","valid_judgments","stable_observed_labels","unknown_stable_labels","judge_vs_observed_replay","observed_replay_vs_construction","reported_usage","bundle_verification"],"Open controlled causal-panel report");
+renderExperiment(data.native_exact_prefix_replay,"native-replay-summary","native-replay-link",["status","protocol","source_batch_id","scope","planned_operations","result_operations","request_count","observed_operations","unknown_operations","stable_label_counts","online_judge_replay_joins","reported_usage","bundle_verification"],"Open native exact-prefix replay report");
+addKeyValues($("latency-metrics"),data.latency||data.timing);
+addKeyValues($("token-metrics"),data.tokens||data.usage||data.primary_usage);
+addKeyValues($("unknown-metrics"),data.unknowns||data.unknown_accounting||{unknown_trials:first(counts,["unknown","unknown_trials","unknown_evaluation"]),failed_trials:first(counts,["failed","failed_trials","process_failed"])});
+const failures=Array.isArray(data.failures)?data.failures:[];
+if(!failures.length){const tr=el("tr"),td=el("td","No failure records were supplied.","empty");td.colSpan=3;tr.append(td);$("failures").append(tr);}else for(const failure of failures){const tr=el("tr");tr.append(el("td",first(failure,["trial_id","id"])??"—","mono"),el("td",first(failure,["type","error_type","status"])??"Failure"),el("td",first(failure,["detail","message","error"])??"—","mono"));$("failures").append(tr);}
+
+function trialBucket(row){const status=String(first(row,["status","run_status","evaluation_status"])??"").toLowerCase();if(["completed","complete","evaluated","passed","valid","success"].includes(status))return "complete";if(["failed","failure","error","timeout","timed_out","invalid"].includes(status))return "failure";return "unknown";}
+function renderTrials(){const query=$("trial-search").value.trim().toLowerCase(),filter=$("trial-filter").value,visible=trials.filter(row=>(!filter||trialBucket(row)===filter)&&(!query||JSON.stringify(row).toLowerCase().includes(query)));$("trial-ledger").replaceChildren();$("trial-count").textContent=visible.length+" / "+trials.length;for(const row of visible){const tr=el("tr"),id=trialId(row)||"Unnamed trial",status=first(row,["status","run_status","evaluation_status"]);const idCell=el("td");idCell.append(linkFor(row,id,"mono"));tr.append(idCell);tr.append(el("td",scenario(row)+" · "+condition(row)+" · R"+repetition(row)));const statusCell=el("td");statusCell.append(el("span",scalar(status),"tag "+statusClass(status)));tr.append(statusCell);tr.append(el("td",compact(first(row,["utility","task_utility"]))),el("td",compact(first(row,["attack_success","attack_goal_success","asr"]))),el("td",compact(first(row,["exposure","payload_exposed","payload_exposure"]))),el("td",compact(first(row,["attribution","attribution_accuracy"])),"raw mono"),el("td",compact(first(row,["routing","route"])),"raw mono"),el("td",compact(first(row,["causal","causal_audit","causal_status"])),"raw mono"),el("td",compact({latency:first(row,["latency","timing","elapsed_seconds"]),tokens:first(row,["tokens","usage","total_tokens"])}),"raw mono"));$("trial-ledger").append(tr);}if(!visible.length){const tr=el("tr"),td=el("td","No matching trial rows.","empty");td.colSpan=10;tr.append(td);$("trial-ledger").append(tr);}}
+$("trial-search").addEventListener("input",renderTrials);$("trial-filter").addEventListener("change",renderTrials);renderTrials();
+
+function renderProposals(){const query=$("proposal-search").value.trim().toLowerCase(),visible=proposals.filter(row=>!query||JSON.stringify(row).toLowerCase().includes(query));$("proposal-ledger").replaceChildren();$("proposal-count").textContent=visible.length+" / "+proposals.length;for(const row of visible){const tr=el("tr"),id=String(first(row,["proposal_id","proposal_event_id","id"])??"Unnamed proposal"),firstCell=el("td");firstCell.append(el("div",id,"mono"),linkFor(row,trialId(row)||"Open run","small"));tr.append(firstCell);const source=first(row,["source_id","source_ids","sources","source"]),sink=first(row,["sink_id","sink","target","function"]);tr.append(el("td",compact(source)+" → "+compact(sink),"mono"),el("td",compact(first(row,["attribution","prediction","attribution_label"])),"raw mono"),el("td",compact(first(row,["routing","route","first_matched_tier"])),"raw mono"),el("td",compact(first(row,["causal_eligibility","eligible","plan_status"])),"raw mono"),el("td",compact(first(row,["causal_judgment","judgment","validity","decision"])),"raw mono"),el("td",compact({latency:first(row,["latency","elapsed_ns","judge_latency"]),tokens:first(row,["judge_tokens","tokens","usage"])}),"raw mono"));$("proposal-ledger").append(tr);}if(!visible.length){const tr=el("tr"),td=el("td","No matching proposal rows.","empty");td.colSpan=7;tr.append(td);$("proposal-ledger").append(tr);}}
+$("proposal-search").addEventListener("input",renderProposals);renderProposals();
+
+$("plan-json").textContent=JSON.stringify(plan,null,2);
+const aggregate={...data};delete aggregate.trials;delete aggregate.proposals;delete aggregate.plan;$("summary-json").textContent=JSON.stringify(aggregate,null,2);
+</script>
+</body>
+</html>

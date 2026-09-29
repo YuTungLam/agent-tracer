@@ -1,0 +1,503 @@
+{
+  "schema_version": 1,
+  "protocol": "NT-AgentDojo-Conformance-v1",
+  "execution_contract": {
+    "collection_mode": "collect_exact_node_then_execute_exact_node",
+    "network_access": "disabled",
+    "model_requests": "disabled",
+    "case_timeout_seconds": 120,
+    "stdout_stderr_storage": "sha256_and_byte_count_only"
+  },
+  "milestones": [
+    {
+      "id": "M1",
+      "title": "Declared source and sink policy with prefix-bound attribution",
+      "scope": "Deterministic policy, source exposure, sink selection, and missing-evidence branches.",
+      "cases": [
+        {
+          "id": "m1-native-policy-inventory",
+          "node_id": "tests/test_policy.py::test_default_workspace_policy_covers_actual_suite_with_declared_overlap",
+          "branches": ["declared_policy", "source_sink_overlap"],
+          "invariants": ["The workspace policy covers the installed native tool inventory.", "Declared source and sink overlap remains explicit."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m1-neutral-and-sink-only-exclusions",
+          "node_id": "tests/test_policy.py::test_neutral_and_sink_only_outputs_are_explicit_policy_exclusions",
+          "branches": ["neutral_tool", "sink_only_tool"],
+          "invariants": ["Neutral and sink-only outputs cannot silently become eligible sources."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m1-tool-source-gate",
+          "node_id": "tests/test_policy_cascade_integration.py::test_policy_keeps_context_controls_but_only_tool_sources_enter_cascade",
+          "branches": ["context_control", "eligible_tool_source"],
+          "invariants": ["Context controls remain visible while only declared tool outputs enter the policy cascade."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m1-origin-from-proposal",
+          "node_id": "tests/test_policy_cascade_integration.py::test_origin_comes_from_actual_proposal_not_payload_or_tool_message_metadata",
+          "branches": ["unclassified_source_tool", "metadata_spoof_rejected"],
+          "invariants": ["Source origin is bound to the recorded proposal rather than untrusted payload metadata."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m1-missing-exposure",
+          "node_id": "tests/test_provenance.py::test_missing_tool_exposure_prevents_analysis_of_proposal",
+          "branches": ["missing_source_exposure"],
+          "invariants": ["A tool result without a recorded model-visible exposure cannot be treated as a source."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m1-zero-argument-sink",
+          "node_id": "tests/test_provenance.py::test_zero_argument_call_has_no_attribution_target",
+          "branches": ["zero_argument_call"],
+          "invariants": ["A zero-argument proposal does not fabricate an argument attribution target."],
+          "live_judge_evidence": false
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "title": "Ordered four-tier explicit evidence cascade",
+      "scope": "Tier routing, boundary behavior, unavailable evidence, failures, budgets, and truncation.",
+      "cases": [
+        {
+          "id": "m2-tier1-disabled-condition",
+          "node_id": "tests/test_cascade.py::test_tier1_is_disabled_without_changing_text_or_using_exact_baseline",
+          "branches": ["tier1_disabled"],
+          "invariants": ["A disabled Canary condition is recorded explicitly and does not change the exact baseline."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m2-tier2-short-circuit",
+          "node_id": "tests/test_cascade.py::test_tier2_equality_short_circuits_before_any_semantic_encoding",
+          "branches": ["tier2_positive"],
+          "invariants": ["An exact lexical hit stops later semantic work."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m2-tier3-short-circuit",
+          "node_id": "tests/test_cascade.py::test_tier3_equality_short_circuits_before_chunks_are_encoded",
+          "branches": ["tier2_negative", "tier3_positive"],
+          "invariants": ["A whole-text semantic hit stops chunk encoding."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m2-tier4-after-tier3",
+          "node_id": "tests/test_cascade.py::test_tier4_is_computed_only_after_tier3_nonmatch",
+          "branches": ["tier3_negative", "tier4_evaluated"],
+          "invariants": ["Chunk coverage is evaluated only after a complete Tier-3 nonmatch."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m2-tier4-inclusive-boundary",
+          "node_id": "tests/test_cascade.py::test_tier4_requires_both_inclusive_thresholds[0.6-0.1-True]",
+          "branches": ["tier4_boundary_positive"],
+          "invariants": ["Tier-4 requires both declared inclusive thresholds."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m2-no-match-versus-unavailable",
+          "node_id": "tests/test_cascade.py::test_no_match_is_distinct_from_unavailable_semantics",
+          "branches": ["complete_negative", "semantic_unavailable"],
+          "invariants": ["Unavailable semantic evidence cannot be reported as a negative measurement."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m2-lexical-budget-failure",
+          "node_id": "tests/test_cascade.py::test_budget_exceeded_lexical_is_not_silently_called_a_nonmatch",
+          "branches": ["tier2_budget_exceeded"],
+          "invariants": ["Lexical budget exhaustion remains an explicit failure."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m2-semantic-budget-continuation",
+          "node_id": "tests/test_cascade.py::test_semantic_budget_failure_is_preserved_and_later_stage_is_attempted",
+          "branches": ["tier3_budget_exceeded", "tier4_attempted"],
+          "invariants": ["A stage failure is preserved even when a later independent stage is attempted."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m2-encoder-error-stop",
+          "node_id": "tests/test_cascade.py::test_encoder_error_stops_all_later_semantic_work_and_does_not_leak_text[True]",
+          "branches": ["encoder_error"],
+          "invariants": ["Encoder errors stop dependent work and do not serialize private error text."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m2-truncated-similarity",
+          "node_id": "tests/test_cascade.py::test_truncated_similarity_hit_is_candidate_but_negative_remains_uncertain",
+          "branches": ["truncated_positive_candidate", "truncated_negative_unknown"],
+          "invariants": ["Truncated evidence may retain a hit but cannot establish a complete negative."],
+          "live_judge_evidence": false
+        }
+      ]
+    },
+    {
+      "id": "M3",
+      "title": "Content-bound lineage and restored memory",
+      "scope": "Graph paths, storage bindings, fresh-session restoration, retirement, and immutable evidence.",
+      "cases": [
+        {
+          "id": "m3-confirmed-write-lineage",
+          "node_id": "tests/test_lineage.py::test_confirmed_write_preserves_candidate_and_structural_evidence_without_input_mutation",
+          "branches": ["confirmed_write"],
+          "invariants": ["A confirmed write preserves structural evidence without mutating recorded inputs."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m3-exposure-bound-restoration",
+          "node_id": "tests/test_lineage.py::test_save_load_restores_labels_only_after_actual_matching_exposure",
+          "branches": ["save", "load", "matching_exposure"],
+          "invariants": ["Loading storage restores labels only after an exact model-visible exposure."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m3-episode-retirement",
+          "node_id": "tests/test_lineage.py::test_new_episode_retires_bindings_and_does_not_carry_old_context",
+          "branches": ["new_episode", "retired_binding"],
+          "invariants": ["A fresh episode does not inherit active context from the previous episode."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m3-native-list-restoration",
+          "node_id": "tests/test_lineage.py::test_supported_file_reads_restore_only_exact_record_bindings[list_files]",
+          "branches": ["native_file_read", "exact_record_binding"],
+          "invariants": ["Native file reads restore only exact content-bound records."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m3-append-path",
+          "node_id": "tests/test_lineage.py::test_append_preserves_prior_path_only_when_visible_result_matches_prior_plus_suffix",
+          "branches": ["append_success", "append_mismatch"],
+          "invariants": ["Append lineage extends a prior path only when the visible result matches prior content plus the suffix."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m3-delete-history",
+          "node_id": "tests/test_lineage.py::test_confirmed_delete_invalidates_binding_but_preserves_historical_graph",
+          "branches": ["confirmed_delete"],
+          "invariants": ["Deletion invalidates the active binding while preserving historical graph evidence."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m3-detached-checkpoint",
+          "node_id": "tests/test_lineage.py::test_snapshots_and_augmented_calls_are_detached_and_checkpoint_is_exclusive",
+          "branches": ["snapshot", "checkpoint"],
+          "invariants": ["Returned graph snapshots are detached and checkpoint creation is exclusive."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m3-budget-failure",
+          "node_id": "tests/test_lineage.py::test_budget_failure_is_explicit_and_failed_state_cannot_be_saved",
+          "branches": ["lineage_budget_exceeded"],
+          "invariants": ["Lineage budget failure remains explicit and cannot be persisted as valid state."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m3-cross-session-ancestry",
+          "node_id": "tests/test_lineage_integration.py::test_actual_restored_memory_exposure_recovers_original_session_ancestry",
+          "branches": ["fresh_session", "restored_memory_path"],
+          "invariants": ["A real fresh-session exposure recovers ancestry from the original session."],
+          "live_judge_evidence": false
+        }
+      ]
+    },
+    {
+      "id": "M4",
+      "title": "Bound single-source and joint-source causal planning",
+      "scope": "Single and joint interventions, conservative interpretation, strict judge parsing, errors, and budgets.",
+      "cases": [
+        {
+          "id": "m4-no-argument-single-source",
+          "node_id": "tests/test_causal_v2.py::test_no_argument_sink_requires_bound_context_not_fabricated_negative_scores",
+          "branches": ["single_source", "no_argument_sink"],
+          "invariants": ["A no-argument sink requires a bound source context and does not fabricate negative scores."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-single-and-joint-plan",
+          "node_id": "tests/test_causal_v2.py::test_joint_plan_neutralizes_each_repeated_occurrence_without_mutating_inputs",
+          "branches": ["single_source", "source_pair", "repeated_occurrence"],
+          "invariants": ["The plan contains bound singleton and pair interventions and leaves inputs unchanged."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-joint-and-pattern",
+          "node_id": "tests/test_causal_v2.py::test_joint_prediction_patterns_are_conservative[values0-predicted_AND_like]",
+          "branches": ["joint_and_like"],
+          "invariants": ["Joint predictions use the declared conservative AND-like interpretation."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-joint-or-pattern",
+          "node_id": "tests/test_causal_v2.py::test_joint_prediction_patterns_are_conservative[values1-predicted_redundant_OR_like]",
+          "branches": ["joint_redundant_or_like"],
+          "invariants": ["Joint predictions do not masquerade as two independent singleton causes."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-pair-budget",
+          "node_id": "tests/test_causal_v2.py::test_pair_budget_preserves_unknown_inventory_and_cannot_claim_full_no_change",
+          "branches": ["pair_budget_exceeded"],
+          "invariants": ["An omitted pair remains explicit unknown evidence."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-source-budget",
+          "node_id": "tests/test_causal_v2.py::test_source_cap_retains_unknown_instead_of_selecting_favorable_sources",
+          "branches": ["source_budget_exceeded"],
+          "invariants": ["Source caps cannot select favorable sources and hide the omitted inventory."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-inseparable-origin",
+          "node_id": "tests/test_causal_v2.py::test_shared_recovered_origin_is_not_treated_as_separable_joint_sources",
+          "branches": ["shared_recovered_origin"],
+          "invariants": ["Sources with a shared recovered origin are not treated as separable interventions."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-judge-yes",
+          "node_id": "tests/test_counterfactual.py::test_strict_judgment_valid_schema[True-0.3]",
+          "branches": ["judge_yes"],
+          "invariants": ["A strict valid yes judgment preserves its boolean and confidence."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-judge-no",
+          "node_id": "tests/test_counterfactual.py::test_strict_judgment_valid_schema[False-0.3]",
+          "branches": ["judge_no"],
+          "invariants": ["A strict valid no judgment preserves its boolean and confidence."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-judge-missing",
+          "node_id": "tests/test_counterfactual.py::test_unknown_and_missing_judgments_remain_unknown",
+          "branches": ["judge_missing", "judge_unknown"],
+          "invariants": ["Missing judgments remain unknown rather than becoming negative evidence."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-judge-truncated",
+          "node_id": "tests/test_causal_v2_audit.py::test_truncated_and_non_final_judgments_remain_unknown[length]",
+          "branches": ["judge_truncated"],
+          "invariants": ["A truncated response remains an invalid unknown judgment."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-judge-server-error",
+          "node_id": "tests/test_causal_v2_audit.py::test_failed_requests_are_not_retried_or_replaced[server_error]",
+          "branches": ["judge_error", "no_retry"],
+          "invariants": ["A failed judge slot is recorded once and is neither retried nor replaced."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-judge-budget",
+          "node_id": "tests/test_causal_v2_audit.py::test_budget_exhaustion_keeps_unrequested_slots_unknown",
+          "branches": ["judge_budget_exhausted"],
+          "invariants": ["Every unrequested judge slot survives as an explicit unknown result."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m4-retry-enabled-client-rejected",
+          "node_id": "tests/test_causal_v2_audit.py::test_client_retries_must_be_disabled",
+          "branches": ["retry_configuration_rejected"],
+          "invariants": ["The isolated judge client must have SDK retries disabled."],
+          "live_judge_evidence": false
+        }
+      ]
+    },
+    {
+      "id": "M5",
+      "title": "Unified sink decisions and derived graph composition",
+      "scope": "One composition entry point, bound explicit and causal decisions, joint edges, and immutable inputs.",
+      "cases": [
+        {
+          "id": "m5-public-composer",
+          "node_id": "tests/test_paper_audit.py::test_public_single_proposal_composer_matches_bulk_and_does_not_mutate_inputs",
+          "branches": ["single_proposal_composition", "typed_graph_delta"],
+          "invariants": ["The public composer matches bulk composition and does not mutate the call, plan, results, or DCPG."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m5-joint-edge-without-singleton-claim",
+          "node_id": "tests/test_paper_audit.py::test_verified_existing_audit_produces_group_edge_without_singleton_causal_claim",
+          "branches": ["joint_positive"],
+          "invariants": ["Joint-removal evidence produces a source-set edge without inventing singleton causes."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m5-complete-negative",
+          "node_id": "tests/test_paper_audit.py::test_complete_negative_judgments_produce_usable_false_detector_flag",
+          "branches": ["complete_causal_negative"],
+          "invariants": ["Only complete tested interventions can produce a resolved negative detector flag."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m5-omitted-probes-unknown",
+          "node_id": "tests/test_paper_audit.py::test_request_cap_keeps_every_omitted_probe_unknown",
+          "branches": ["partial_causal_coverage"],
+          "invariants": ["Request caps retain all omitted source-set decisions as unknown."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m5-explicit-bound-decision",
+          "node_id": "tests/test_paper_audit.py::test_explicit_decision_retains_bound_source_path_and_score",
+          "branches": ["explicit_positive"],
+          "invariants": ["An explicit decision retains its verified path and evidence score."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m5-invalid-response-not-promoted",
+          "node_id": "tests/test_paper_audit.py::test_raw_unknown_response_remains_unknown_without_retrospective_promotion",
+          "branches": ["invalid_judgment"],
+          "invariants": ["A raw invalid response remains unknown during later composition."],
+          "live_judge_evidence": false
+        }
+      ]
+    },
+    {
+      "id": "M6",
+      "title": "Retained native integration controls",
+      "scope": "Pinned explicit negatives, restored-memory paths, isolated no-tools judging, invalid responses, and source integrity.",
+      "cases": [
+        {
+          "id": "m6-pinned-four-stage-control",
+          "node_id": "tests/test_counterfactual_integration.py::test_native_pair_and_pinned_four_negative_stages",
+          "branches": ["native_control", "four_complete_negatives"],
+          "invariants": ["The retained native pair records all four pinned negative stages without added real API calls."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m6-restored-memory-probe",
+          "node_id": "tests/test_counterfactual_integration.py::test_memory_probe_uses_actual_second_session_exposure_and_restored_paths",
+          "branches": ["restored_memory_probe"],
+          "invariants": ["The retained memory probe uses the actual second-session exposure and restored graph paths."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m6-no-tools-judge-yes",
+          "node_id": "tests/test_counterfactual_integration.py::test_actual_no_tools_judge_adapter_preserves_primary_run[yes-no_alert]",
+          "branches": ["isolated_judge_yes"],
+          "invariants": ["The no-tools judge preserves the primary run for a valid yes response."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m6-no-tools-judge-no",
+          "node_id": "tests/test_counterfactual_integration.py::test_actual_no_tools_judge_adapter_preserves_primary_run[no-alert]",
+          "branches": ["isolated_judge_no"],
+          "invariants": ["The no-tools judge preserves the primary run for a valid no response."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m6-no-tools-judge-error",
+          "node_id": "tests/test_counterfactual_integration.py::test_actual_no_tools_judge_adapter_preserves_primary_run[error-unknown]",
+          "branches": ["isolated_judge_error"],
+          "invariants": ["A judge transport error remains unknown and does not alter the primary trajectory."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m6-invalid-judge-artifact",
+          "node_id": "tests/test_counterfactual_integration.py::test_unusable_judge_response_is_retained_without_becoming_a_valid_verdict[invalid_json]",
+          "branches": ["invalid_judge_response"],
+          "invariants": ["An unusable response is retained for audit without becoming a valid verdict."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m6-source-tamper-preflight",
+          "node_id": "tests/test_counterfactual_integration.py::test_audit_rejects_changed_verified_inputs_before_any_judge_request[request]",
+          "branches": ["source_integrity_failure"],
+          "invariants": ["Changed verified inputs fail before any judge request and remain unmodified."],
+          "live_judge_evidence": false
+        }
+      ]
+    },
+    {
+      "id": "M7",
+      "title": "Online pre-runtime causal sidecar and verifiable artifacts",
+      "scope": "Pre-runtime receipts, action equivalence, immutable inputs, typed deltas, failures, budgets, and artifact verification.",
+      "cases": [
+        {
+          "id": "m7-provenance-flush-receipt",
+          "node_id": "tests/test_online.py::test_proposal_is_detached_and_receipt_proves_successful_analysis_flush",
+          "branches": ["proposal_analysis", "flush_receipt"],
+          "invariants": ["Proposal analysis is detached and its exact persisted line has a flush receipt."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m7-pre-runtime-clock-binding",
+          "node_id": "tests/test_online.py::test_runtime_uses_prior_flush_clocks_and_exact_call_reference",
+          "branches": ["matched_runtime", "before_runtime"],
+          "invariants": ["Runtime timing binds the exact call to already-flushed analysis and receipt clocks."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m7-typed-delta-before-runtime",
+          "node_id": "tests/test_online_causal.py::test_bound_predictions_flush_before_runtime_and_add_typed_edges",
+          "branches": ["online_judge_valid", "typed_graph_delta"],
+          "invariants": ["Bound causal predictions flush before runtime and add only declared typed graph deltas.", "The original DCPG and proposal inputs remain unchanged."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m7-global-budget-unknowns",
+          "node_id": "tests/test_online_causal.py::test_global_request_budget_leaves_every_unattempted_slot_explicit_unknown",
+          "branches": ["online_budget_exhausted"],
+          "invariants": ["The run-level judge budget retains every unattempted slot as explicit unknown."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m7-invalid-judge-no-throw",
+          "node_id": "tests/test_online_causal.py::test_judge_failure_is_unknown_no_throw_and_secret_never_reaches_jsonl[invalid]",
+          "branches": ["online_invalid_judgment"],
+          "invariants": ["An invalid online judgment is unknown, does not throw into native runtime, and does not leak secrets."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m7-malformed-input-fail-open",
+          "node_id": "tests/test_online_causal.py::test_malformed_graph_and_timing_event_fail_open_without_input_mutation",
+          "branches": ["malformed_graph", "malformed_timing"],
+          "invariants": ["Ordinary causal-sidecar errors fail open without input mutation."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m7-native-action-equivalence",
+          "node_id": "tests/test_live_attribution_integration.py::test_m7_online_causal_is_isolated_bound_and_non_enforcing_on_native_runtime",
+          "branches": ["native_runtime", "non_enforcing_sidecar"],
+          "invariants": ["Enabling the M7 sidecar preserves native requests, actions, messages, environment, statistics, and failure behavior."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m7-complete-artifact-verification",
+          "node_id": "tests/test_verify_online_causal.py::test_complete_inline_and_quarantined_runs_verify_without_network_or_mutation",
+          "branches": ["inline_response", "quarantined_response", "offline_verifier"],
+          "invariants": ["The read-only verifier accepts complete inline and quarantined artifacts without network access or source mutation."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m7-graph-hash-tamper",
+          "node_id": "tests/test_verify_online_causal.py::test_causal_artifact_tampering_is_rejected[graph_hash]",
+          "branches": ["artifact_tamper"],
+          "invariants": ["A changed causal graph hash is rejected by artifact verification."],
+          "live_judge_evidence": false
+        },
+        {
+          "id": "m7-quarantine-tamper-and-orphan",
+          "node_id": "tests/test_verify_online_causal.py::test_quarantined_response_byte_tampering_and_orphan_files_are_rejected",
+          "branches": ["quarantined_response_tamper", "orphan_artifact"],
+          "invariants": ["Changed quarantined bytes and orphan response artifacts are rejected."],
+          "live_judge_evidence": false
+        }
+      ]
+    }
+  ],
+  "live_judge_coverage": {
+    "status": "not_evaluated_by_deterministic_conformance",
+    "claimed": false,
+    "required_for_deterministic_pass": false,
+    "known_observation": "The retained live M7 run reached an explicit Tier-2 hit and made zero eligible causal-judge requests.",
+    "next_evidence": "A separate authorized live run must reach an eligible sink and produce a real isolated-judge receipt."
+  }
+}

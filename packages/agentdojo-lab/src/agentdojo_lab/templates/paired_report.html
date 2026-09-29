@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-@@NONCE@@'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Clean × Attacked · Visual trace comparison</title>
+<style>@@STYLE@@</style>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="#top"><span class="brand-symbol" aria-hidden="true">↗</span> AGENT TRACE LAB</a><span class="topnote">Saved evidence · Interactive comparison</span></header>
+<main id="top">
+<section class="hero">
+<div><p class="eyebrow">CLEAN × ATTACKED</p><h1>Two runs.<br><span>See where they diverge.</span></h1><p class="intro">Follow the recorded events, open a node, and compare exactly what changed.</p></div>
+<div class="run-identities" id="run-identities"></div>
+</section>
+<section id="metrics" class="metrics" aria-label="Recorded comparison summary"></section>
+<p id="comparison-status" class="comparison-status" hidden></p>
+<section class="path-panel" aria-labelledby="path-title">
+<div class="panel-heading"><div><p class="eyebrow">AT A GLANCE</p><h2 id="path-title">From source to recorded action</h2></div><label class="source-selector">Displayed source <select id="overview-source" aria-label="Source displayed in the overview"></select></label></div>
+<div class="overview-scroll"><svg id="path-overview" role="group" aria-label="Clean and attacked source-to-action diagram" viewBox="0 0 1120 230"></svg></div>
+<p class="diagram-note">Solid arrows: recorded order. Dashed links: request/source association. Exposure does not establish causal influence.</p>
+</section>
+<div class="section-heading"><div><p class="eyebrow">EXPLORE THE EVIDENCE</p><h2>Event-by-event comparison</h2></div><div class="legend"><span><i class="dot clean"></i>Clean</span><span><i class="dot attacked"></i>Attacked</span><span><i class="dot difference"></i>Difference</span></div></div>
+<section class="workspace" aria-label="Visual paired event explorer">
+<aside class="graph-panel">
+<div class="graph-toolbar"><label for="event-filter">Show</label><select id="event-filter"><option value="key">Key events</option><option value="changed">Differences</option><option value="all">All events</option><option value="source">Sources &amp; exposure</option><option value="actions">Tool actions</option></select><label class="search-label"><span class="sr-only">Find event, tool, or text</span><input id="event-search" type="search" placeholder="Find event 37, send_email…"></label></div>
+<div class="graph-columns"><span class="clean-text">CLEAN</span><span class="attacked-text">ATTACKED</span></div>
+<div id="event-list" class="graph-scroll" tabindex="0" aria-label="Paired event flowchart"><svg id="event-graph" role="group" aria-label="Select a recorded event"></svg><p id="empty-graph" hidden>No events match this filter.</p></div>
+<div class="graph-footer"><span id="visible-count"></span><button id="jump-divergence" type="button">Jump to changed argument ↗</button></div>
+</aside>
+<section id="event-comparison" class="inspector" aria-label="Selected event comparison">
+<div class="inspector-heading"><div><p class="eyebrow" id="selection-kind">SELECTED EVENT</p><h2 id="selection-title">Choose an event</h2></div><span id="selection-badge" class="tag"></span></div>
+<p id="selection-explanation" class="explanation"></p>
+<div class="inspector-tabs" role="tablist" aria-label="Event detail views"><button id="tab-compare" role="tab" aria-selected="true" aria-controls="panel-compare" data-tab="compare">Side by side</button><button id="tab-sources" role="tab" aria-selected="false" aria-controls="panel-sources" data-tab="sources">Sources</button><button id="tab-evidence" role="tab" aria-selected="false" aria-controls="panel-evidence" data-tab="evidence">Raw evidence</button></div>
+<div id="panel-compare" role="tabpanel" aria-labelledby="tab-compare"><div id="difference-summary" class="difference-summary"></div><div class="arm-headings"><strong class="clean-text">CLEAN</strong><strong class="attacked-text">ATTACKED</strong></div><div id="readable-comparison"></div><details id="other-fields"><summary>Shared fields</summary><div id="shared-fields"></div></details></div>
+<div id="panel-sources" role="tabpanel" aria-labelledby="tab-sources" hidden><p class="source-explanation">The exact tool content included in each outbound request is shown below, with its recorded source and exposure events.</p><div id="source-comparison"></div></div>
+<div id="panel-evidence" role="tabpanel" aria-labelledby="tab-evidence" hidden><div class="pair-grid" id="raw-comparison"></div></div>
+</section>
+</section>
+<details class="archive" id="original-format"><summary><span>Original tables &amp; complete evidence</span><small>Preserved for detailed inspection</small></summary><div class="archive-content">@@LEGACY@@</div></details>
+<footer><p id="alignment-note"></p><p>Values, failures and unknowns come from saved records. This view adds no experiment or causal conclusion.</p></footer>
+</main>
+<noscript><p class="noscript">Enable JavaScript to use the diagrams. The original tables and evidence remain available above.</p></noscript>
+<script id="paired-event-data" type="application/json" nonce="@@NONCE@@">@@VIEW@@</script>
+<script nonce="@@NONCE@@">@@SCRIPT@@</script>
+</body>
+</html>

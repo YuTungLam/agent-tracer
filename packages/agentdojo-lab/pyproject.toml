@@ -1,0 +1,50 @@
+[project]
+name = "agentdojo-lab"
+version = "0.1.0"
+description = "Reproducible AgentDojo clean-agent experiments with Groq."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "agentdojo==0.1.35",
+    "httpx>=0.28.1",
+    "Jinja2>=3.1,<4",
+    "openai>=1.59.7",
+    "pydantic>=2.7.1",
+    "python-dotenv>=1.0.1",
+    "PyYAML>=6,<7",
+]
+
+[project.scripts]
+dojo-lab = "agentdojo_lab.cli:main"
+
+[project.optional-dependencies]
+figures = [
+    "matplotlib>=3.9,<4",
+]
+semantic = [
+    "sentence-transformers==6.0.1",
+    "torch>=2.2,<3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentdojo_lab"]
+
+[tool.uv.sources]
+agentdojo = { path = "vendor/agentdojo", editable = true }
+
+[dependency-groups]
+dev = ["pytest>=8.0.2", "ruff>=0.3.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["vendor", ".bootstrap"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
