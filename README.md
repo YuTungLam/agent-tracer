@@ -51,7 +51,9 @@ Each component README contains more detail.
 
 ## Evidence policy
 
-Generated runs and reports are intentionally absent and ignored. The original public repository remains the immediate immutable historical archive at commit [f761e088](https://github.com/YuTungLam/Tool-Output-Injection-Attacks-on-Agentic-AI-Systems/tree/f761e0883452a1c52234d92978ca4511ac4bea51). See [experimental data](docs/EXPERIMENTAL_DATA.md) before copying any evidence: raw artifacts can contain complete prompts, tool arguments, URLs, model output, and blinded-review mappings.
+Generated runs and reports are intentionally absent and ignored. Active evidence belongs in the private [agent-tracer-results](https://github.com/YuTungLam/agent-tracer-results) repository; its historical import is anchored at commit `ed716be6c1bbfa37706b17513a76de65f4b9a289`. Before any result-related work, agents must follow the path-confirmation handshake in [AGENTS.md](AGENTS.md). See [the results workflow](docs/RESULTS_REPOSITORY.md) and [experimental-data policy](docs/EXPERIMENTAL_DATA.md).
+
+The original public repository remains an immutable provenance source at commit [f761e088](https://github.com/YuTungLam/Tool-Output-Injection-Attacks-on-Agentic-AI-Systems/tree/f761e0883452a1c52234d92978ca4511ac4bea51). Its raw artifacts can contain complete prompts, tool arguments, URLs, model output, and blinded-review mappings.
 
 Only source templates remain. In particular, HTML files under packages/agentdojo-lab/src/agentdojo_lab are runtime assets, not generated reports.
 

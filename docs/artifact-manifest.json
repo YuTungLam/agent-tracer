@@ -1,7 +1,14 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "source_repository": "https://github.com/YuTungLam/Tool-Output-Injection-Attacks-on-Agentic-AI-Systems",
   "source_commit": "f761e0883452a1c52234d92978ca4511ac4bea51",
+  "results_repository": {
+    "url": "https://github.com/YuTungLam/agent-tracer-results",
+    "visibility": "private",
+    "branch": "main",
+    "historical_import_commit": "ed716be6c1bbfa37706b17513a76de65f4b9a289",
+    "snapshot_path": "snapshots/source-f761e088"
+  },
   "access_note": "Historical source is public; privacy and research-integrity review is required before redistribution.",
   "artifacts": [
     {
@@ -10,6 +17,7 @@
       "git_tree": "b4b561073eb0a71be7672f33f2c64b43d1e40d46",
       "file_count": 14418,
       "logical_bytes": 480717682,
+      "results_path": "snapshots/source-f761e088/codebase/agentdojo-lab/runs",
       "access_classification": "historical-public-sensitive-research-data"
     },
     {
@@ -18,7 +26,24 @@
       "git_tree": "99d6e357198c818ab5653d26e49ebc7d511d6001",
       "file_count": 1529,
       "logical_bytes": 242865589,
+      "results_path": "snapshots/source-f761e088/codebase/agentdojo-lab/reports",
       "access_classification": "historical-public-sensitive-research-data"
+    },
+    {
+      "id": "agentdojo-supporting-evidence-at-f761e088",
+      "path": "selected annotations, result/progress records, research/HPC context, and scheduler logs",
+      "file_count": 33,
+      "logical_bytes": 553076,
+      "results_path": "snapshots/source-f761e088",
+      "access_classification": "historical-public-sensitive-research-data"
+    },
+    {
+      "id": "local-stash-traces-at-5f4d75c",
+      "path": "stash 5f4d75c92cfee9c5b52f8891877cc19c019bd2b5:traces",
+      "file_count": 8,
+      "logical_bytes": 31086,
+      "results_path": "snapshots/local-stash-5f4d75c/traces",
+      "access_classification": "private-unpublished-unverified-research-data"
     }
   ]
 }

@@ -37,6 +37,18 @@ The eight HTML/template assets under packages/agentdojo-lab/src/agentdojo_lab we
 
 Some frozen experiment configs still name historical result files. They are retained as protocol records, but those evidence paths resolve only in the immutable source archive.
 
+## Results archive
+
+The excluded experimental evidence was copied, without rewriting the source checkout, to the private [agent-tracer-results](https://github.com/YuTungLam/agent-tracer-results) repository:
+
+- commit: `ed716be6c1bbfa37706b17513a76de65f4b9a289`;
+- branch: `main` only;
+- historical files: 15,988;
+- historical logical size: 724,167,433 bytes;
+- reachable packed Git data at migration time: approximately 25 MiB.
+
+The archive preserves the exact runs, reports, and annotations tree objects, selected result and progress records, research/HPC context, scheduler logs, and the eight unpublished stash traces. Reusable source changes from the stash were incorporated into this code repository; generated package metadata was not archived.
+
 ## Recovered local work
 
 The source checkout had a local stash based on an older AgentDojo commit. Its HTML temporary-file fix was already superseded upstream. The still-relevant changes were replayed here:
@@ -49,7 +61,7 @@ The unconditional POSIX fcntl imports in four current modules were replaced with
 
 ## History and branches
 
-The new repository intentionally contains a single initial commit on main. No source branch, pull-request ref, generated artifact, or old Git object was pushed. The old remote branches were not deleted; they remain the historical record.
+The new repository began with one consolidation commit and keeps `main` as its only long-lived branch. This follow-up documentation records the private results boundary. No source branch, pull-request ref, generated artifact, or old Git history was pushed here. The old remote branches were not deleted; they remain the historical record.
 
 ## Known follow-up work
 
