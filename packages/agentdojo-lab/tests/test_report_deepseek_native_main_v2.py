@@ -37,6 +37,58 @@ class FakeMatcher:
         }
 
 
+class DetailedFakeMatcher:
+    metadata = {"fixture": "request-free detailed fake matcher"}
+
+    @staticmethod
+    def _tokenization(text: str) -> dict:
+        return {
+            "input_tokens": 1,
+            "encoded_tokens": 1,
+            "max_tokens": 256,
+            "truncated": False,
+            "visible_span": [0, len(text)],
+        }
+
+    @classmethod
+    def compare_tier3(cls, source, target):
+        matched = target in source
+        return {
+            "status": "scored",
+            "matched": matched,
+            "score": float(matched),
+            "complete": True,
+            "truncated": False,
+            "source_tokenization": cls._tokenization(source),
+            "target_tokenization": cls._tokenization(target),
+            "source_visible_span": [0, len(source)],
+        }
+
+    @classmethod
+    def compare_tier4(cls, source, target):
+        matched = target in source
+        return {
+            "status": "scored",
+            "matched": matched,
+            "score": float(matched),
+            "coverage": float(matched),
+            "complete": True,
+            "truncated": False,
+            "target_tokenization": cls._tokenization(target),
+            "matched_visible_spans": [[0, len(source)]] if matched else [],
+            "chunks": [
+                {
+                    "span": [0, len(source)],
+                    "sentence_range": [0, 1],
+                    "score": float(matched),
+                    "matched": matched,
+                    "tokenization": cls._tokenization(source),
+                    "visible_span": [0, len(source)],
+                }
+            ],
+        }
+
+
 def _write(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
@@ -388,3 +440,116 @@ def test_repeated_successful_sink_calls_are_reported_but_ambiguous():
     }
     assert report._raw_sink_calls(score, sink, True) == (2, 2, "audited_event_trace")
     assert report._sink_status(slot, score, sink, True) == "repeated_sensitive_sink_attempts_ambiguous"
+
+
+def test_detailed_mode_retains_chunks_without_changing_default_schema(tmp_path):
+    batch = _batch(tmp_path)
+    compact = report.analyze(batch, FakeMatcher())
+    detailed = report.analyze(batch, DetailedFakeMatcher(), include_semantic_details=True)
+
+    assert compact["schema_version"] == 2
+    assert "chunks" not in compact["pairs"][0]["tier4"]
+    assert detailed["schema_version"] == 3
+    assert detailed["batch"] == "batch"
+    assert detailed["analysis_extension"]["request_free"] is True
+    assert detailed["pairs"][0]["tier4"]["chunks"][0]["encoded_visible_text"]
+    assert all("source_text" in item for item in detailed["whole_output_secondary"])
+    assert detailed["chunk_audit_summary"]["primary_pairs"] == len(detailed["pairs"])
+
+    validation = report.validate_reference_packet(detailed, compact, reference_sha256="a" * 64)
+    detailed["reference_validation"] = validation
+    assert validation["status"] == "agree"
+    rendered = report.render_chunk_audit_html(detailed)
+    assert "untrusted experimental evidence" in rendered
+    assert "Primary T3" in rendered
+    assert "Primary-passage best" in rendered
+
+
+def test_detailed_tier4_separates_best_and_target_containing_chunks():
+    source = "Closest semantic sentence. Actual target@example.com."
+    first_end = source.index(" Actual")
+    second_start = first_end + 1
+
+    class TargetFreeBestMatcher:
+        @staticmethod
+        def compare_tier4(_source, _target):
+            assert (_source, _target) == (source, "target@example.com")
+            return {
+                "status": "scored",
+                "matched": True,
+                "score": 0.9,
+                "coverage": 1.0,
+                "complete": True,
+                "truncated": False,
+                "matched_visible_spans": [[0, first_end], [second_start, len(source)]],
+                "chunks": [
+                    {
+                        "span": [0, first_end],
+                        "visible_span": [0, first_end],
+                        "sentence_range": [0, 1],
+                        "score": 0.9,
+                        "matched": True,
+                        "tokenization": {},
+                    },
+                    {
+                        "span": [second_start, len(source)],
+                        "visible_span": [second_start, len(source)],
+                        "sentence_range": [1, 2],
+                        "score": 0.7,
+                        "matched": True,
+                        "tokenization": {},
+                    },
+                ],
+            }
+
+    detail = report.detailed_semantic_stage(TargetFreeBestMatcher(), "tier4", source, "target@example.com")
+    assert detail["best_chunk_index"] == 0
+    assert detail["best_chunk_contains_complete_target_encoded"] is False
+    assert detail["best_target_containing_chunk_index"] == 1
+    assert detail["best_target_containing_chunk_score"] == 0.7
+
+
+def test_detailed_tier4_rejects_invalid_chunk_span():
+    class InvalidSpanMatcher:
+        @staticmethod
+        def compare_tier4(source, target):
+            return {
+                "status": "scored",
+                "matched": True,
+                "score": 1.0,
+                "coverage": 1.0,
+                "complete": True,
+                "truncated": False,
+                "matched_visible_spans": [],
+                "chunks": [
+                    {
+                        "span": [0, len(source) + 1],
+                        "visible_span": [0, len(source)],
+                        "score": 1.0,
+                        "matched": True,
+                    }
+                ],
+            }
+
+    with pytest.raises(ValueError, match="Out-of-range raw chunk"):
+        report.detailed_semantic_stage(InvalidSpanMatcher(), "tier4", "source", "target")
+
+
+def test_reference_validation_rejects_score_drift(tmp_path):
+    batch = _batch(tmp_path)
+    compact = report.analyze(batch, FakeMatcher())
+    detailed = report.analyze(batch, DetailedFakeMatcher(), include_semantic_details=True)
+    compact["pairs"][0]["tier4"]["score"] += 0.01
+    with pytest.raises(ValueError, match="Reference drift"):
+        report.validate_reference_packet(detailed, compact, reference_sha256="b" * 64)
+
+
+def test_chunk_audit_rejects_unscored_records_instead_of_counting_negatives():
+    with pytest.raises(ValueError, match="scored primary-passage"):
+        report._annotate_chunk_audit([{"tier4": {"status": "error", "matched": None}}], [])
+
+    with pytest.raises(ValueError, match="scored whole-output"):
+        report._annotate_chunk_audit(
+            [],
+            [{"tier4": {"status": "error", "matched": None}}],
+        )

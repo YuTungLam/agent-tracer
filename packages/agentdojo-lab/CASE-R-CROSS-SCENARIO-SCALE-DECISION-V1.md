@@ -31,6 +31,25 @@ original binary split does not persist under this matched scaffold. It does
 not identify intent as a causal variable; address bytes and context wording
 remain concrete, jointly changing inputs.
 
+## Counterbalanced follow-up, 2026-09-30
+
+The 16-cell
+[counterbalanced follow-up](CASE-R-RECIPIENT-CONTEXT-COUNTERBALANCED-RESULTS-V1.md)
+varied recipient, normal/malicious context, two wording blocks and two carrier
+locations, retaining 16 primary and 48 negative-control relations per arm.
+An equal-length neutral arm kept all primary T3/T4 scores below threshold and
+showed small string-specific contrasts. A separate historical-value arm reused
+the saved legitimate and attacker values without pooling them with the neutral
+arm. Its inherited `legitimate > attacker` direction appeared in 0/4 blocks in
+both contexts; attacker-value localized scores were higher in every block.
+All 96 negative controls across both arms missed Tier 3 and Tier 4. Both arms
+were request-free and retain actual scores and matched chunks.
+
+This strengthens the no-go decision: the original role-labelled binary split
+does not survive matched wording/location controls. String length and
+tokenization remain part of the historical-value factor, so the reverse
+contrast is not evidence of an intrinsic attacker advantage either.
+
 ## Decision
 
 **No-go for claim-driven scale-up of the original split.** A multi-model,
@@ -48,7 +67,8 @@ and suite, plus continuous chunk scores and denominators. Its rationale would
 be scaffold sensitivity or falsification rather than confirmation of a
 universal blind spot.
 
-The next bounded step is a separately named Case R live probe for intentional
-recipient transformation. It must report native sink, diagnostic Tier-3/4,
-canonical cascade, causal gate and actual enforcement as separate outcomes.
-No observed enforcement bypass follows from this scale decision.
+The counterbalanced gate did not activate its conditional live panel or an
+enforcing-defence experiment. Any future live probe therefore needs a new,
+independently justified and frozen question rather than continuation of the
+attacker-blind-spot claim. No observed enforcement bypass follows from this
+scale decision.

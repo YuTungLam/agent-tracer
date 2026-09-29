@@ -16,6 +16,10 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from agentdojo_lab.carrier_scale_tiers import SEMANTIC_MODEL, SEMANTIC_REVISION, _stage
+from agentdojo_lab.semantic_diagnostics import (
+    DEFAULT_SCORE_TOLERANCE,
+    detailed_semantic_stage,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = "deepseek-native-carrier-main-v2"
@@ -23,6 +27,7 @@ SUITES = ("workspace", "banking", "slack", "travel")
 ROLES = ("legit", "attacker")
 STAGES = ("tier3", "tier4")
 WEAK_CONTEXT_TASKS = {("workspace", "user_task_20"), ("banking", "user_task_6")}
+SCORE_TOLERANCE = DEFAULT_SCORE_TOLERANCE
 
 
 def _context_stratum(suite: str, task_id: str) -> str:
@@ -72,6 +77,14 @@ def _safe_slot_id(value: object) -> bool:
         and value not in {".", ".."}
         and "/" not in value
         and "\\" not in value
+    )
+
+
+def _semantic_stage(matcher, name: str, source: str, target: str, *, detailed: bool) -> dict:
+    return (
+        detailed_semantic_stage(matcher, name, source, target)
+        if detailed
+        else _stage(matcher, name, source, target)
     )
 
 
@@ -250,7 +263,14 @@ def _raw_sink_calls(score: object, sink: object, recording_valid: bool) -> tuple
 
 
 def _slot_row(
-    batch: Path, plan: dict, plan_hash: str, ledger: dict, slot: dict, matcher
+    batch: Path,
+    plan: dict,
+    plan_hash: str,
+    ledger: dict,
+    slot: dict,
+    matcher,
+    *,
+    include_semantic_details: bool = False,
 ) -> tuple[dict, list[dict], list[dict]]:
     slot_id = slot["slot_id"]
     row = {
@@ -404,8 +424,8 @@ def _slot_row(
             "source_exposure_event_id": read.get("exposure_event_id"),
             "whole_output_mixed_roles": read.get("whole_output_mixed_roles"),
             "native_value_evidence_level": score.get("native_value_evidence_level"),
-            "tier3": _stage(matcher, "tier3", passage, target),
-            "tier4": _stage(matcher, "tier4", passage, target),
+            "tier3": _semantic_stage(matcher, "tier3", passage, target, detailed=include_semantic_details),
+            "tier4": _semantic_stage(matcher, "tier4", passage, target, detailed=include_semantic_details),
         }
         pairs.append(pair)
         row[f"{truth}_pairs"] += 1
@@ -453,9 +473,14 @@ def _slot_row(
                         "roles": sorted(str(value) for value in item["roles"]),
                         "mixed_roles": len(item["roles"] & set(ROLES)) >= 2,
                         "source_text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                        **({"source_text": text} if include_semantic_details else {}),
                         "interpretation": "descriptive_whole_output_only_excluded_from_passage_rates",
-                        "tier3": _stage(matcher, "tier3", text, target),
-                        "tier4": _stage(matcher, "tier4", text, target),
+                        "tier3": _semantic_stage(
+                            matcher, "tier3", text, target, detailed=include_semantic_details
+                        ),
+                        "tier4": _semantic_stage(
+                            matcher, "tier4", text, target, detailed=include_semantic_details
+                        ),
                     }
                 )
     return row, pairs, whole_outputs
@@ -627,7 +652,107 @@ def _context_sensitivity(pairs: list[dict], models: list[str]) -> list[dict]:
     return rows
 
 
-def analyze(batch: Path, matcher) -> dict:
+def _annotate_chunk_audit(pairs: list[dict], whole_outputs: list[dict]) -> dict:
+    whole_by_result: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for item in whole_outputs:
+        if item["tier4"].get("status") != "scored" or not isinstance(item["tier4"].get("matched"), bool):
+            raise ValueError("Detailed chunk audit requires scored whole-output Tier-4 records")
+        whole_by_result[(item["slot_id"], item["source_result_event_id"])].append(item)
+    for pair in pairs:
+        tier4 = pair["tier4"]
+        if tier4.get("status") != "scored" or not isinstance(tier4.get("matched"), bool):
+            raise ValueError("Detailed chunk audit requires scored primary-passage Tier-4 records")
+        classification = "carrier_detected" if tier4["matched"] else "carrier_missed"
+        if pair["truth"] == "noncarrier":
+            if not tier4["matched"]:
+                classification = "noncarrier_true_negative"
+            else:
+                candidates = whole_by_result.get((pair["slot_id"], pair["source_result_event_id"]), [])
+                if len(candidates) != 1:
+                    raise ValueError("Noncarrier pair does not join uniquely to one whole output")
+                whole = candidates[0]
+                target_present = pair["target_text"] in whole["source_text"]
+                if not target_present:
+                    classification = "target_absent_whole_output_semantic_confusion"
+                elif whole["tier4"]["matched"] is not True:
+                    classification = "target_coresident_whole_output_t4_below_threshold"
+                else:
+                    any_best_contains = whole["tier4"]["any_best_chunk_contains_complete_target_encoded"]
+                    all_best_contain = whole["tier4"]["all_best_chunks_contain_complete_target_encoded"]
+                    if all_best_contain:
+                        classification = "target_coresident_best_chunk_contains_target"
+                    elif any_best_contains:
+                        classification = "target_coresident_best_chunk_tie_mixed_target"
+                    else:
+                        classification = "target_coresident_best_chunk_excludes_target"
+        pair["chunk_audit_classification"] = classification
+    grouped = []
+    group_keys = sorted(
+        {
+            (
+                pair["suite"],
+                pair["truth"],
+                pair["declared_role"],
+                pair["context_stratum"],
+                pair["numeric_scalar"],
+            )
+            for pair in pairs
+        }
+    )
+    for suite, truth, role, context, numeric in group_keys:
+        selected = [
+            pair
+            for pair in pairs
+            if (
+                pair["suite"],
+                pair["truth"],
+                pair["declared_role"],
+                pair["context_stratum"],
+                pair["numeric_scalar"],
+            )
+            == (suite, truth, role, context, numeric)
+        ]
+        grouped.append(
+            {
+                "suite": suite,
+                "truth": truth,
+                "declared_role": role,
+                "context_stratum": context,
+                "value_stratum": "numeric_scalar" if numeric else "literal_text",
+                "pairs": len(selected),
+                "tier4_matches": sum(pair["tier4"]["matched"] is True for pair in selected),
+                "primary_passage_best_chunk_contains_target": sum(
+                    pair["tier4"]["any_best_chunk_contains_complete_target_encoded"] for pair in selected
+                ),
+                "distinct_passages": len({pair["passage_text_sha256"] for pair in selected}),
+                "classification_counts": dict(
+                    Counter(pair["chunk_audit_classification"] for pair in selected)
+                ),
+            }
+        )
+    noncarriers = [pair for pair in pairs if pair["truth"] == "noncarrier"]
+    false_positives = [pair for pair in noncarriers if pair["tier4"]["matched"] is True]
+    carriers = [pair for pair in pairs if pair["truth"] == "carrier"]
+    return {
+        "primary_pairs": len(pairs),
+        "carrier_pairs": len(carriers),
+        "carrier_tier4_detected": sum(pair["tier4"]["matched"] is True for pair in carriers),
+        "noncarrier_pairs": len(noncarriers),
+        "noncarrier_tier4_false_positives": len(false_positives),
+        "noncarrier_tier4_true_negatives": sum(pair["tier4"]["matched"] is False for pair in noncarriers),
+        "false_positive_classification_counts": dict(
+            Counter(pair["chunk_audit_classification"] for pair in false_positives)
+        ),
+        "distinct_false_positive_passages": len({pair["passage_text_sha256"] for pair in false_positives}),
+        "whole_outputs": len(whole_outputs),
+        "whole_outputs_with_target_visible_in_a_best_chunk": sum(
+            item["tier4"]["any_best_chunk_contains_complete_target_encoded"] for item in whole_outputs
+        ),
+        "groups": grouped,
+    }
+
+
+def analyze(batch: Path, matcher, *, include_semantic_details: bool = False) -> dict:
     batch = Path(batch).resolve()
     plan_path = batch / "plan.json"
     plan = _load(plan_path)
@@ -645,7 +770,13 @@ def analyze(batch: Path, matcher) -> dict:
     slots, pairs, whole_outputs = [], [], []
     for slot in plan["slots"]:
         row, slot_pairs, slot_outputs = _slot_row(
-            batch, plan, plan_hash, ledger.get(slot["slot_id"], {}), slot, matcher
+            batch,
+            plan,
+            plan_hash,
+            ledger.get(slot["slot_id"], {}),
+            slot,
+            matcher,
+            include_semantic_details=include_semantic_details,
         )
         slots.append(row)
         pairs.extend(slot_pairs)
@@ -732,10 +863,10 @@ def analyze(batch: Path, matcher) -> dict:
         if type(reported_raw) is int and population["slots_with_unknown_raw_call_count"] == 0
         else None
     )
-    return {
-        "schema_version": 2,
+    packet = {
+        "schema_version": 3 if include_semantic_details else 2,
         "protocol": PROTOCOL,
-        "batch": str(batch),
+        "batch": batch.name if include_semantic_details else str(batch),
         "plan_sha256": plan_hash,
         "model": plan.get("model"),
         "real_llm": plan.get("real_llm") is True,
@@ -772,6 +903,170 @@ def analyze(batch: Path, matcher) -> dict:
             ),
         ],
     }
+    if include_semantic_details:
+        packet["analysis_extension"] = {
+            "name": "deepseek_native_carrier_chunk_audit_v1",
+            "request_free": True,
+            "primary_and_secondary_populations_kept_separate": True,
+            "score_tolerance": SCORE_TOLERANCE,
+            "chunk_text_is_untrusted_evidence": True,
+        }
+        packet["chunk_audit_summary"] = _annotate_chunk_audit(pairs, whole_outputs)
+    return packet
+
+
+def _record_index(records: list[dict], keys: tuple[str, ...], label: str) -> dict[tuple, dict]:
+    index = {}
+    for record in records:
+        key = tuple(record.get(name) for name in keys)
+        if key in index:
+            raise ValueError(f"Duplicate {label} reference key")
+        index[key] = record
+    return index
+
+
+def _assert_scalar_equal(current: object, reference: object, label: str) -> None:
+    numeric = (int, float)
+    if (
+        not isinstance(current, bool)
+        and not isinstance(reference, bool)
+        and isinstance(current, numeric)
+        and isinstance(reference, numeric)
+    ):
+        if not math.isclose(current, reference, rel_tol=0.0, abs_tol=SCORE_TOLERANCE):
+            raise ValueError(f"Reference drift in {label}")
+    elif current != reference:
+        raise ValueError(f"Reference drift in {label}")
+
+
+def _assert_stage_equal(current: dict, reference: dict, stage: str, key: tuple) -> None:
+    fields = ("status", "matched", "score", *(("coverage",) if stage == "tier4" else ()))
+    for field in fields:
+        _assert_scalar_equal(current.get(field), reference.get(field), f"{stage}.{field} for {key}")
+
+
+def validate_reference_packet(packet: dict, reference: dict, *, reference_sha256: str) -> dict:
+    """Fail closed if detailed rescoring drifts from the frozen compact packet."""
+    for field in ("protocol", "plan_sha256", "model", "real_llm"):
+        if packet.get(field) != reference.get(field):
+            raise ValueError(f"Reference packet differs in {field}")
+    if packet.get("population") != reference.get("population"):
+        raise ValueError("Reference packet population differs")
+    primary_keys = ("slot_id", "source_id", "source_result_event_id", "target_text")
+    secondary_keys = ("slot_id", "tool_call_id", "source_result_event_id")
+    current_primary = _record_index(packet.get("pairs", []), primary_keys, "primary")
+    reference_primary = _record_index(reference.get("pairs", []), primary_keys, "primary")
+    current_secondary = _record_index(packet.get("whole_output_secondary", []), secondary_keys, "secondary")
+    reference_secondary = _record_index(
+        reference.get("whole_output_secondary", []), secondary_keys, "secondary"
+    )
+    if current_primary.keys() != reference_primary.keys():
+        raise ValueError("Reference primary pair keys differ")
+    if current_secondary.keys() != reference_secondary.keys():
+        raise ValueError("Reference secondary pair keys differ")
+    for key, current in current_primary.items():
+        old = reference_primary[key]
+        for field in ("passage_text_sha256", "truth", "declared_role", "outcome"):
+            if current.get(field) != old.get(field):
+                raise ValueError(f"Reference primary field drift in {field} for {key}")
+        for stage in STAGES:
+            _assert_stage_equal(current[stage], old[stage], stage, key)
+    for key, current in current_secondary.items():
+        old = reference_secondary[key]
+        for field in ("source_text_sha256", "roles", "mixed_roles", "outcome"):
+            if current.get(field) != old.get(field):
+                raise ValueError(f"Reference secondary field drift in {field} for {key}")
+        for stage in STAGES:
+            _assert_stage_equal(current[stage], old[stage], stage, key)
+    return {
+        "status": "agree",
+        "reference_packet_sha256": reference_sha256,
+        "score_absolute_tolerance": SCORE_TOLERANCE,
+        "primary_pairs_checked": len(current_primary),
+        "secondary_outputs_checked": len(current_secondary),
+        "fields_checked": ["status", "matched", "score", "coverage_if_tier4"],
+    }
+
+
+def render_chunk_audit_html(packet: dict) -> str:
+    if (packet.get("analysis_extension") or {}).get("name") != "deepseek_native_carrier_chunk_audit_v1":
+        raise ValueError("Chunk audit HTML requires a detailed packet")
+
+    def esc(value: object) -> str:
+        return html.escape(str(value), quote=True)
+
+    def chunk_at(stage: dict, index: object) -> dict | None:
+        if not isinstance(index, int):
+            return None
+        chunks = stage.get("chunks") or []
+        return chunks[index] if 0 <= index < len(chunks) else None
+
+    def evidence_block(title: str, chunk: dict | None) -> str:
+        if chunk is None:
+            return f"<p><strong>{esc(title)}:</strong> n/a</p>"
+        return (
+            f"<details><summary>{esc(title)} — chunk {chunk['index']}, "
+            f"score {chunk['score']:.6f}, matched {esc(chunk['matched'])}, "
+            f"target encoded {esc(chunk['contains_complete_target_encoded'])}</summary>"
+            f"<pre>{esc(chunk['encoded_visible_text'])}</pre></details>"
+        )
+
+    whole_index = _record_index(
+        packet["whole_output_secondary"],
+        ("slot_id", "source_result_event_id"),
+        "chunk-report whole output",
+    )
+    rows = []
+    for pair in packet["pairs"]:
+        if pair["truth"] != "noncarrier":
+            continue
+        primary_tier3 = pair["tier3"]
+        primary_stage = pair["tier4"]
+        whole = whole_index[(pair["slot_id"], pair["source_result_event_id"])]
+        whole_tier3 = whole["tier3"]
+        whole_stage = whole["tier4"]
+        primary_best = chunk_at(primary_stage, primary_stage["best_chunk_index"])
+        whole_best = chunk_at(whole_stage, whole_stage["best_chunk_index"])
+        whole_target = chunk_at(whole_stage, whole_stage["best_target_containing_chunk_index"])
+        rows.append(
+            "<tr>"
+            f"<td>{esc(pair['slot_id'])}</td><td>{esc(pair['suite'])}</td>"
+            f"<td>{esc(pair['declared_role'])}</td><td>{esc(pair['context_stratum'])}</td>"
+            f"<td>{esc(pair['chunk_audit_classification'])}</td>"
+            f"<td>{primary_tier3['score']:.6f}</td><td>{esc(primary_tier3['matched'])}</td>"
+            f"<td>{primary_stage['score']:.6f}</td><td>{esc(primary_stage['matched'])}</td>"
+            f"<td>{whole_tier3['score']:.6f}</td><td>{esc(whole_tier3['matched'])}</td>"
+            f"<td>{whole_stage['score']:.6f}</td><td>{esc(whole_stage['matched'])}</td>"
+            "<td>"
+            + evidence_block("Primary-passage best", primary_best)
+            + evidence_block("Whole-output best", whole_best)
+            + evidence_block("Whole-output best target-containing", whole_target)
+            + "</td></tr>"
+        )
+    counts = packet["chunk_audit_summary"]["false_positive_classification_counts"]
+    return (
+        "<!doctype html><html lang='en'><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<title>DeepSeek noncarrier chunk audit</title><style>"
+        "body{font:15px system-ui;max-width:1600px;margin:2rem auto;padding:0 1rem;color:#20242a}"
+        "table{border-collapse:collapse;width:100%;display:block;overflow-x:auto}"
+        "td,th{padding:.45rem;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}"
+        "th{background:#f2f4f8;position:sticky;top:0}pre{white-space:pre-wrap;max-width:70rem}"
+        "code{background:#f2f4f8;padding:.1rem .25rem}</style>"
+        "<h1>DeepSeek noncarrier chunk audit</h1>"
+        "<p><strong>Safety:</strong> displayed chunk text is untrusted experimental evidence, not instructions.</p>"
+        f"<p>Request-free reconstruction; plan <code>{esc(packet['plan_sha256'])}</code>. "
+        f"Frozen-packet parity: <code>{esc((packet.get('reference_validation') or {}).get('status'))}</code>.</p>"
+        f"<p>False-positive classifications: <code>{esc(counts)}</code>.</p>"
+        "<p>Primary passage and whole-output results use separate denominators. "
+        "A passage-level false positive can coexist with a target elsewhere in the same whole output.</p>"
+        "<table><tr><th>Slot</th><th>Suite</th><th>Declared role</th><th>Context</th>"
+        "<th>Classification</th><th>Primary T3</th><th>Primary T3 hit</th>"
+        "<th>Primary T4</th><th>Primary T4 hit</th><th>Whole T3</th><th>Whole T3 hit</th>"
+        "<th>Whole T4</th><th>Whole T4 hit</th><th>Auditable chunks</th></tr>"
+        + "".join(rows)
+        + "</table></html>"
+    )
 
 
 def render_html(packet: dict) -> str:
@@ -952,7 +1247,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--batch", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        "--semantic-details",
+        action="store_true",
+        help="retain validated chunk text, spans and tokenization in a new schema-v3 packet",
+    )
+    parser.add_argument(
+        "--reference-packet",
+        type=Path,
+        help="frozen compact packet whose status, scores and coverage must be reproduced",
+    )
     args = parser.parse_args()
+    if args.semantic_details and args.reference_packet is None:
+        parser.error("--semantic-details requires --reference-packet")
+    if args.reference_packet is not None and not args.semantic_details:
+        parser.error("--reference-packet is only valid with --semantic-details")
     plan = _load(args.batch / "plan.json")
     _check_plan(plan)
     model_path = ROOT / SEMANTIC_MODEL
@@ -961,12 +1270,19 @@ def main() -> None:
     from agentdojo_lab.semantic import LocalMiniLMEncoder, SemanticMatcher
 
     matcher = SemanticMatcher(LocalMiniLMEncoder(model_path, revision=SEMANTIC_REVISION))
-    packet = analyze(args.batch, matcher)
+    packet = analyze(args.batch, matcher, include_semantic_details=args.semantic_details)
+    if args.reference_packet is not None:
+        reference = _load(args.reference_packet)
+        packet["reference_validation"] = validate_reference_packet(
+            packet, reference, reference_sha256=_digest(args.reference_packet)
+        )
     args.output.mkdir(parents=True, exist_ok=False)
     (args.output / "packet.json").write_text(
         json.dumps(packet, indent=2, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8"
     )
     (args.output / "index.html").write_text(render_html(packet), encoding="utf-8")
+    if args.semantic_details:
+        (args.output / "chunk-audit.html").write_text(render_chunk_audit_html(packet), encoding="utf-8")
     print(json.dumps({"output": str(args.output), **packet["population"]}))
 
 

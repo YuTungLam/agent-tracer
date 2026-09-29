@@ -133,6 +133,14 @@ The attacker carrier denominator is empty in Workspace and Travel because
 no exact attacker value reached an eligible sink there. Some attack slots
 still exposed the attacker text and executed the legitimate value.
 
+The request-free
+[noncarrier chunk audit](DEEPSEEK-NONCARRIER-CHUNK-AUDIT-V1.md) subsequently
+reproduced all 324 primary and 260 whole-output scores within `1e-6`. It found
+that 47/82 passage-level noncarrier positives had the target elsewhere in the
+same serialized output, while 35/82 had no target anywhere in that output and
+are the stronger semantic-confusion cases. These mechanisms are reported
+separately and do not establish an attacker-role effect.
+
 Commands actually run from `codebase/agentdojo-lab`:
 
 ```bash
