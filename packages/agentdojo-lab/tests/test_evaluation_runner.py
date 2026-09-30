@@ -349,6 +349,7 @@ def test_original_offline_smoke_restriction_is_preserved(tmp_path):
 @pytest.mark.parametrize(
     "text",
     ["a: &anchor test\nb: *anchor", "a: !custom value", "a: one\na: two", "[" * 40 + "]" * 40, "x" * 262145],
+    ids=["yaml-alias", "yaml-tag", "duplicate-key", "deep-nesting", "oversized-text"],
 )
 def test_exposure_parser_refuses_ambiguous_or_excessive_structure(text):
     with pytest.raises((ValueError, yaml.YAMLError)):
