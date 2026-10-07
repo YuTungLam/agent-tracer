@@ -1,0 +1,72 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "paa",
+  "description": "PAA (Path-Aligned Attribution, audit-artifact-E593) with deepseek-flash as its auditor backbone. The artifact's own paa.run runs in its own venv; the adapter swaps paa.llm._run_backend for an OpenAI-compatible transport to the guard, disables paa.llm.subprocess, and applies the declared runtime patch P1-tooldesc-marker. Each stage = zero-cost prepare (sample + integrity + prompt sizes) + guarded run + zero-cost fidelity report. Set AUDITOR_ARTIFACTS_ROOT (its paa/ child holds .venv and src/audit-artifact-E593) and AUDITOR_OUT_ROOT; paid stages also need AUDITOR_LAB_ENV.",
+  "defaults": {
+    "request_model": "deepseek-flash",
+    "model_aliases": [],
+    "venv": ".venv",
+    "max_tokens_default": 8192,
+    "max_tokens_ceiling": 8192,
+    "request_timeout_seconds": 600,
+    "timeout_seconds": 3600,
+    "dry_run_cap_requests": 6,
+    "env": {},
+    "fidelity": "backbone-substituted: deepseek-flash replaces Claude Sonnet 5 via Claude Code CLI v2.1.172 effort low (paper Table 12, App. C.1); temperature 0.0 and thinking disabled (lab convention); --contract on, rules 0.3; declared runtime patch P1-tooldesc-marker (paa.eu._ACTION_TOOL_MARK /input_benign/tools/ -> /benign_input/tools/); not an exact reproduction"
+  },
+  "stages": {
+    "s0-dry": {
+      "description": "Plumbing dry run: 1 unit (the smallest-prompt S1 unit) through the guard to local Ollama. Not evidence.",
+      "argv": ["{artifact_python}", "-X", "utf8", "-I", "{adapter_dir}/paa_deepseek.py", "stage",
+               "--stage", "dry", "--artifact-root", "{artifact_root}/src/audit-artifact-E593",
+               "--out", "{out_dir}/paa", "--cap-usd", "0.10", "--cap-tokens", "400000",
+               "--max-requests", "6", "--max-tokens", "2048", "--timeout", "900"],
+      "cap_usd": 0.10,
+      "cap_tokens": 400000,
+      "paid_allowed": false,
+      "dry_run_allowed": true,
+      "estimate": {
+        "requests": "1-6 (contract, trace, adjudicate; up to 2 attempts each)",
+        "tokens": "local Ollama; prompt truncated to the model's context",
+        "usd": "0 real; the guard prices Ollama requests notionally at DeepSeek rates (usd_is_notional), and one 66k-char trace prompt reserves about 0.013 notional, so the notional ceiling is 0.10"
+      },
+      "compares_to": "nothing; checks the route, the patch, certificate stamping and both ledgers"
+    },
+    "s1": {
+      "description": "3 Codex-corpus units drawn from the S2 sample (gold Block IO03/IO04, gold Block other, gold Pass): measure real DeepSeek tokens per unit, JSON-contract compliance and finish reasons before S2.",
+      "argv": ["{artifact_python}", "-X", "utf8", "-I", "{adapter_dir}/paa_deepseek.py", "stage",
+               "--stage", "S1", "--artifact-root", "{artifact_root}/src/audit-artifact-E593",
+               "--out", "{out_dir}/paa", "--cap-usd", "0.50", "--cap-tokens", "700000",
+               "--max-requests", "30", "--max-tokens", "8192", "--timeout", "900"],
+      "cap_usd": 0.50,
+      "cap_tokens": 700000,
+      "cap_requests": 30,
+      "dry_run_allowed": false,
+      "timeout_seconds": 3600,
+      "estimate": {
+        "requests": "about 12 (4 per unit, the Sonnet-5 median; 18 max)",
+        "tokens": "central 185k input + 21k output; upper 436k + 147k (UNVERIFIED; prepare_receipt.json estimate)",
+        "usd": "central 0.08, upper 0.31 at the 2026-09-30 snapshot 0.30/1.20 per M (UNVERIFIED)"
+      },
+      "compares_to": "per-unit verdicts in the shipped Sonnet-5 predictions (baselines/v4-baseline-exp-results/v4-codex-r1/paa-claude/predictions.jsonl) and gold; n=3, descriptive only"
+    },
+    "s2": {
+      "description": "60-unit fidelity sample of the Codex corpus (30 gold Block incl. 5 IO03 + 5 IO04, 30 gold Pass; proportional within gold class, one unit per trajectory pair, sha256 order with tag paa-deepseek-fidelity-v1).",
+      "argv": ["{artifact_python}", "-X", "utf8", "-I", "{adapter_dir}/paa_deepseek.py", "stage",
+               "--stage", "S2", "--artifact-root", "{artifact_root}/src/audit-artifact-E593",
+               "--out", "{out_dir}/paa", "--cap-usd", "5.00", "--cap-tokens", "10000000",
+               "--max-requests", "420", "--max-tokens", "8192", "--timeout", "900"],
+      "cap_usd": 5.00,
+      "cap_tokens": 10000000,
+      "cap_requests": 420,
+      "dry_run_allowed": false,
+      "timeout_seconds": 28800,
+      "estimate": {
+        "requests": "about 240 (4 per unit; 360 max)",
+        "tokens": "central 3.03M input + 0.42M output; upper 7.14M + 2.95M (UNVERIFIED; prepare_receipt.json estimate)",
+        "usd": "central 1.41, upper 5.68 at the 2026-09-30 snapshot (UNVERIFIED); the 5.00 cap stops the pathological upper case"
+      },
+      "compares_to": "recall/FBR vs paper Table 2 (Codex corpus, PAA Sonnet 5: .860/.077; tool-call view Table 3 .875/.071) and the Table 16 pair-bootstrap CIs in exp/bootstrap-ci/data/ci_estimates.csv (recall .8255-.8923, FBR .0585-.0974); per-unit agreement, kappa and McNemar against the shipped Sonnet-5 predictions on the same 60 units (OPEN-7 draft threshold 0.80); GPT-5.5 predictions as a second reference"
+    }
+  }
+}

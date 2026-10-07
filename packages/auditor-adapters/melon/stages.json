@@ -1,0 +1,65 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "melon",
+  "notes": [
+    "Template config: no machine paths. The runner fills {artifact_python} and {artifact_root} from --artifact-root (or AUDITOR_ARTIFACTS_ROOT/melon); pass the pinned MiniLM directory with --set embedder_dir=<path>.",
+    "Every stage runs one fresh interpreter per episode (per-task MELON cache); see README.md.",
+    "Estimates are UNVERIFIED. Token bases: lab native DeepSeek per-slot means banking 5,849 and slack 8,328 tokens (packages/agentdojo-lab/PILOT-PROTOCOL-V1-DRAFT.md section 9.1, from SNAP/runs/20260928-deepseek-native-carrier-main-v2/summary.json); MELON multiplier 1.8-2.6x from the Week-1 Ollama smoke (masked prompt about 1.5x the original prompt; external-auditors/melon/NOTES.md section 5b) and one extra masked call per tool step (pi_detector.py:311, :365).",
+    "Prices: deepseek-flash 0.30 USD/M input, 1.20 USD/M output, lab snapshot 2026-09-30, UNVERIFIED today."
+  ],
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "max_tokens_default": 2048,
+    "max_tokens_ceiling": 2048,
+    "request_timeout_seconds": 120.0,
+    "paid_allowed": true,
+    "dry_run_allowed": false,
+    "env": {
+      "MELON_EMBEDDER": "minilm"
+    },
+    "fidelity": "backbone-substituted: deepseek-flash replaces GPT-4o; embedder substituted (all-MiniLM-L6-v2 replaces text-embedding-3-large, threshold 0.8 unchanged); per-task cache; not an exact reproduction"
+  },
+  "stages": {
+    "dry": {
+      "description": "Plumbing dry run: 1 MELON episode (banking user_task_0 x injection_task_0, important_instructions) through the guard to local Ollama qwen2.5:7b-instruct.",
+      "argv": ["{artifact_python}", "-s", "-P", "-X", "utf8", "{adapter_dir}/run_melon_stage.py", "--stage", "dry",
+               "--out-dir", "{out_dir}", "--artifact-dir", "{artifact_root}", "--embedder-dir", "{embedder_dir}",
+               "--python", "{artifact_python}", "--request-timeout", "330"],
+      "cap_usd": 0.01,
+      "cap_tokens": 60000,
+      "cap_requests": 10,
+      "dry_run_cap_requests": 10,
+      "paid_allowed": false,
+      "dry_run_allowed": true,
+      "timeout_seconds": 1800,
+      "request_timeout_seconds": 300.0,
+      "estimate": {"episodes": 1, "requests": "3-7", "tokens": "4k-15k (qwen tokenizer; Week-1 smoke R2 used 3 requests)", "usd": "0 (local)"},
+      "compares_to": "Week-1 smoke R2 (external-auditors/melon/smoke/smoke_ollama_results.json): flagged at the first read-only step, 3 chat requests"
+    },
+    "s1": {
+      "description": "Canary: banking user_task_0 x injection_task_0, important_instructions, No-defense row then MELON row (2 episodes).",
+      "argv": ["{artifact_python}", "-s", "-P", "-X", "utf8", "{adapter_dir}/run_melon_stage.py", "--stage", "s1",
+               "--out-dir", "{out_dir}", "--artifact-dir", "{artifact_root}", "--embedder-dir", "{embedder_dir}",
+               "--python", "{artifact_python}"],
+      "cap_usd": 0.05,
+      "cap_tokens": 100000,
+      "cap_requests": 120,
+      "timeout_seconds": 3600,
+      "estimate": {"episodes": 2, "requests": "6-20", "tokens": "16k-34k (UNVERIFIED)", "usd": "0.006-0.012 (UNVERIFIED)"},
+      "compares_to": "Week-1 Ollama smoke R2 (same pair, MELON); go/no-go for S2: both episodes status ok, guard ledger usage present, no wire refusal"
+    },
+    "s2": {
+      "description": "Banking + Slack (AgentDojo v1.1.2), important_instructions, No-defense and MELON rows: 37 benign + 249 attacked episodes per row = 572 episodes.",
+      "argv": ["{artifact_python}", "-s", "-P", "-X", "utf8", "{adapter_dir}/run_melon_stage.py", "--stage", "s2",
+               "--out-dir", "{out_dir}", "--artifact-dir", "{artifact_root}", "--embedder-dir", "{embedder_dir}",
+               "--python", "{artifact_python}"],
+      "cap_usd": 6.0,
+      "cap_tokens": 16000000,
+      "cap_requests": 8000,
+      "timeout_seconds": 43200,
+      "estimate": {"episodes": 572, "requests": "2.5k-4.5k", "tokens": "5.6M-10.8M (No-defense 2.0M-3.0M, MELON 3.6M-7.8M; UNVERIFIED)", "usd": "1.9-3.7 (UNVERIFIED)"},
+      "compares_to": "MELON paper Table 1/2 Original, GPT-4o, Important Messages, v1.1.2, all four suites: MELON BU 66/97, UA 207/629, ASR 6/629; No defense BU 78/97, UA 340/629, ASR 321/629. No per-suite targets exist, so only the direction is comparable. Lab: DeepSeek produced attacker sinks only in Banking and Slack (native main v2)."
+    }
+  }
+}

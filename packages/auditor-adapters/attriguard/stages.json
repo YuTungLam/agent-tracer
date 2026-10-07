@@ -1,0 +1,76 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "attriguard",
+  "about": "Runner stages for common/deepseek_route.py run-stage. Episode lists, rows and deviations live in config.template.json (same stage names). Paths come from --artifact-root / AUDITOR_ARTIFACTS_ROOT; nothing machine-specific is stored here.",
+  "defaults": {
+    "argv": [
+      "{artifact_python}",
+      "{adapter_dir}/run_attriguard.py",
+      "--artifact-src",
+      "{artifact_root}/src/usenix-artifacts/main/pipeline",
+      "--config",
+      "{adapter_dir}/config.template.json",
+      "--stage",
+      "{stage}",
+      "--out",
+      "{out_dir}/adapter"
+    ],
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "max_tokens_default": 2048,
+    "max_tokens_ceiling": 2048,
+    "request_timeout_seconds": 120,
+    "paid_allowed": true,
+    "dry_run_allowed": true,
+    "dry_run_cap_requests": 10,
+    "fidelity": "backbone-substituted: deepseek-flash replaces GPT-4.1-mini as target, shadow, attenuation and judge model"
+  },
+  "stages": {
+    "DRY": {
+      "description": "Plumbing only: banking user_task_0 x injection_task_0, AttriGuard lambda=2, ToolKnowledge, Ollama qwen2.5:7b-instruct upstream. Not a measurement.",
+      "paid_allowed": false,
+      "cap_usd": 0.05,
+      "cap_tokens": 120000,
+      "timeout_seconds": 1800,
+      "estimate": {
+        "episodes": 1,
+        "requests": "10 (cap); the 2026-10-08 dry run used all 10 before the episode finished",
+        "tokens": "14,163 notional for 10 requests (measured, Ollama qwen2.5:7b-instruct tokenizer)",
+        "usd": "0 (local; guard notional 0.0056)"
+      }
+    },
+    "S1": {
+      "description": "Two AttriGuard lambda=2 ToolKnowledge episodes on DeepSeek: banking user_task_0 x injection_task_0 and slack user_task_0 x injection_task_3. Checks the wire (tool calls, judge logprobs) and measures tokens per episode.",
+      "cap_usd": 0.1,
+      "cap_tokens": 150000,
+      "cap_requests": 80,
+      "timeout_seconds": 3600,
+      "estimate": {
+        "episodes": 2,
+        "requests": "25-40 (UNVERIFIED)",
+        "tokens_per_episode": "banking 15k-25k, slack 20k-30k (UNVERIFIED; see README 'Estimate basis')",
+        "tokens": "35k-55k, high 80k",
+        "usd": "0.015-0.035 at the 2026-09-30 snapshot (UNVERIFIED)"
+      },
+      "compares_to": "none (plumbing and cost calibration only)"
+    },
+    "S2": {
+      "description": "Table 4 setting (Banking+Slack, ToolKnowledge, lambda=2): rows no_defense and attriguard_l2, 34 benign + 230 attacked episodes each, rows interleaved per pair. Resume after a stop with: run-stage ... -- --resume-from <previous out_dir>/adapter",
+      "dry_run_allowed": false,
+      "cap_usd": 10.0,
+      "cap_tokens": 25000000,
+      "cap_requests": 15000,
+      "timeout_seconds": 86400,
+      "estimate": {
+        "episodes": "528 = 2 rows x (34 benign + 230 attacked)",
+        "requests": "4.3k-6.4k (UNVERIFIED)",
+        "tokens": "6.4M-13.5M: no_defense 1.8M-2.7M, attriguard_l2 4.5M-10.8M (UNVERIFIED; recalibrate from S1)",
+        "usd": "2.4-5.2 at the 2026-09-30 snapshot (UNVERIFIED)"
+      },
+      "compares_to": {
+        "attriguard_l2": "Table 4 'AttriGuard (default, lambda=2)', p.13, GPT-4.1-mini: BU 70.59% (24/34), UA 66.96% (154/230), ASR 0.00% (0/230)",
+        "no_defense": "Fig. 2(d) GPT-4.1-mini ToolKnowledge, digitised: ASR Banking ~73.8%, Slack ~75.8% (approximate)"
+      }
+    }
+  }
+}

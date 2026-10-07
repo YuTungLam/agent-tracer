@@ -1,0 +1,58 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "common",
+  "description": "Route canary for the shared DeepSeek guard. Two fixed benign requests: one plain, one native tool call with tool_choice=auto (the lab wire shape).",
+  "defaults": {
+    "request_model": "deepseek-flash",
+    "model_aliases": [],
+    "max_tokens_default": 64,
+    "max_tokens_ceiling": 64,
+    "timeout_seconds": 600,
+    "dry_run_cap_requests": 4,
+    "env": {}
+  },
+  "stages": {
+    "s0-key": {
+      "description": "Key check, run before anything else: exactly one plain request (the canary's 'pong' prompt) with max_tokens clamped to 1 by the guard. Confirms the key, the model id and the thinking-disabled wire on real DeepSeek at the smallest possible cost. The receipt shows status completed with halt_reason request_cap_reached, because the single allowed request uses the whole request cap.",
+      "argv": ["{python}", "{common_dir}/canary_client.py", "--out", "{out_dir}/canary.json", "--requests", "1", "--model", "{model}", "--client", "urllib"],
+      "max_tokens_default": 1,
+      "max_tokens_ceiling": 1,
+      "cap_usd": 0.001,
+      "cap_tokens": 500,
+      "cap_requests": 1,
+      "dry_run_cap_requests": 1,
+      "estimate": {
+        "requests": 1,
+        "tokens": "about 27 (UNVERIFIED for DeepSeek; the same prompt was 26 prompt tokens with qwen2.5's tokenizer in the 2026-10-08 Ollama dry runs, plus 1 completion token)",
+        "usd": "about 0.00001 at the 2026-09-30 lab snapshot (UNVERIFIED); the guard reserves about 0.00003 before sending"
+      },
+      "compares_to": "lab DeepSeek wire contract (packages/agentdojo-lab/configs/cross_model_pilot_v2.json providers[deepseek]); pass = HTTP 200, usage_source provider, completion_tokens <= 1"
+    },
+    "s0-canary": {
+      "description": "Two requests through the guard with the standard-library client.",
+      "argv": ["{python}", "{common_dir}/canary_client.py", "--out", "{out_dir}/canary.json", "--requests", "2", "--model", "{model}", "--client", "urllib"],
+      "cap_usd": 0.01,
+      "cap_tokens": 5000,
+      "cap_requests": 4,
+      "estimate": {
+        "requests": 2,
+        "tokens": "about 250 (UNVERIFIED; prompt about 30 + 90, completion <= 16 + 64)",
+        "usd": "about 0.0002 at the 2026-09-30 lab snapshot (UNVERIFIED)"
+      },
+      "compares_to": "lab DeepSeek wire contract: packages/agentdojo-lab/configs/cross_model_pilot_v2.json providers[deepseek].wire_request_assertion"
+    },
+    "s0-canary-sdk": {
+      "description": "Same two requests through the openai SDK; run the runner with an artifact venv python that has openai installed.",
+      "argv": ["{python}", "{common_dir}/canary_client.py", "--out", "{out_dir}/canary.json", "--requests", "2", "--model", "{model}", "--client", "openai"],
+      "cap_usd": 0.01,
+      "cap_tokens": 5000,
+      "cap_requests": 4,
+      "estimate": {
+        "requests": 2,
+        "tokens": "about 250 (UNVERIFIED)",
+        "usd": "about 0.0002 (UNVERIFIED)"
+      },
+      "compares_to": "lab DeepSeek wire contract (as s0-canary), exercised through the openai SDK the artifacts use"
+    }
+  }
+}

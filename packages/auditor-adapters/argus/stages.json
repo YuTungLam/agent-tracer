@@ -1,0 +1,64 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "argus",
+  "about": "Stages for common/deepseek_route.py run-stage. ARGUS / AgentLure (Warrant) with agent and every judge on deepseek-flash through the guard. Paths come from --artifact-root / AUDITOR_ARTIFACTS_ROOT and --out-root; nothing machine-specific is stored here. Estimates come from `run_argus.py plan` on the artifact's zero-call estimator rows; all are UNVERIFIED for DeepSeek.",
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "max_tokens_default": 4096,
+    "max_tokens_ceiling": 4096,
+    "request_timeout_seconds": 180,
+    "paid_allowed": true,
+    "dry_run_allowed": true,
+    "dry_run_cap_requests": 10,
+    "fidelity": "backbone-substituted: deepseek-flash replaces gpt-4o-mini as the agent and as every Warrant judge (published targets used gpt-4o-mini)"
+  },
+  "stages": {
+    "DRY": {
+      "description": "Plumbing only: one AgentLure sample (banking/user_task_3/RI), Warrant row, Ollama qwen2.5:7b-instruct behind the guard, at most 10 requests. The cap is expected to cut the sample; the adapter must then set it aside as budget_refusal. Not a measurement.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_argus.py", "agentlure", "--design", "s1", "--limit", "1",
+               "--rows", "warrant", "--workers", "1", "--out", "{out_dir}/adapter"],
+      "paid_allowed": false,
+      "cap_usd": 0.05,
+      "cap_tokens": 200000,
+      "timeout_seconds": 1800,
+      "estimate": {"samples": 1, "requests": "10 (cap; a full Warrant sample needs about 150-190)", "tokens": "about 10k-20k notional", "usd": "0 (local)"},
+      "compares_to": "none (plumbing)"
+    },
+    "S1": {
+      "description": "Gate: 3 AgentLure samples (banking attacked, travel attacked, slack clean), rows none and warrant interleaved. Checks the DeepSeek wire for the agent and all judge components (JSON mode, finish_reason=stop, span-id compliance) and calibrates tokens per sample against the zero-call estimate. Its valid records are reused by S2 via --resume-from.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_argus.py", "agentlure", "--design", "s1",
+               "--rows", "none", "warrant", "--workers", "3", "--out", "{out_dir}/adapter"],
+      "cap_usd": 1.0,
+      "cap_tokens": 2000000,
+      "cap_requests": 1500,
+      "timeout_seconds": 7200,
+      "estimate": {"samples": "3 x 2 rows", "requests": "about 500 base (455 judge calls)", "tokens": "0.56M base, 1.40M high (x2.5)", "usd": "0.18 base, 0.46 high at the 2026-09-30 snapshot (UNVERIFIED)"},
+      "compares_to": "zero-call estimate (external-auditors/argus/smoke/estimate_calls_agentlure.json); no fidelity verdict"
+    },
+    "S2": {
+      "description": "Stratified AgentLure subset, rows none and warrant: 80 attacked (20 per suite, 10 per vector, every user task twice with distinct vectors) + all 40 clean, S1 samples first, suites round-robin so a capped stop stays balanced. Resume after a stop: run-stage ... -- --resume-from <earlier out_dir>/adapter",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_argus.py", "agentlure", "--design", "s2",
+               "--rows", "none", "warrant", "--workers", "8", "--out", "{out_dir}/adapter"],
+      "dry_run_allowed": false,
+      "cap_usd": 26.0,
+      "cap_tokens": 80000000,
+      "cap_requests": 60000,
+      "timeout_seconds": 43200,
+      "estimate": {"samples": "120 x 2 rows", "requests": "about 23.4k base (21.6k judge calls)", "tokens": "32.0M base, 79.9M high (x2.5)", "usd": "10.34 base, 25.85 high at the 2026-09-30 snapshot (UNVERIFIED)"},
+      "compares_to": "ARGUS arXiv v2 Table 2 (AgentLure): ARGUS ASR 3.8% (12/320), Uc 87.5% (35/40), Refusal 7.5% (3/40); No defense ASR 28.8% (92/320), Uc 92.5% (37/40). Backbone-substituted check, n=80 attacked."
+    },
+    "S3": {
+      "description": "Optional. AgentDojo v1.2.1, important_instructions (the artifact's generality defaults): 20 attacked + 5 clean per suite, a seeded subset of the artifact's own 80+15 per suite draw; rows none and warrant.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_argus.py", "agentdojo", "--design", "s3",
+               "--rows", "none", "warrant", "--workers", "8", "--out", "{out_dir}/adapter"],
+      "dry_run_allowed": false,
+      "cap_usd": 16.0,
+      "cap_tokens": 48000000,
+      "cap_requests": 40000,
+      "timeout_seconds": 43200,
+      "estimate": {"samples": "100 x 2 rows", "requests": "about 15.2k base (14.1k judge calls)", "tokens": "18.5M base, 46.2M high (x2.5)", "usd": "6.05 base, 15.14 high at the 2026-09-30 snapshot (UNVERIFIED)"},
+      "compares_to": "ARGUS arXiv v2 Table 3 AgentDojo row: ASR 38.1% -> 5.0% (about 122/320 -> 16/320), utility 65.0% -> 69.0%. Configuration not stated in the paper; artifact defaults assumed."
+    }
+  }
+}

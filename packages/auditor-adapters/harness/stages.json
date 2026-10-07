@@ -1,0 +1,88 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "harness",
+  "about": "Runner stages for common/deepseek_route.py run-stage. The child runs with the LAB venv: pass --artifact-root <agent-tracer>/packages/agentdojo-lab (never stored here). Episode lists, wire contract, comparison target and deviations live in config.template.json under the same stage names. Estimates come from estimate_tokens.py (ground-truth replay, calibrated against the lab's measured DeepSeek per-suite means) and are UNVERIFIED until the S1 ledger exists.",
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "model_aliases": [],
+    "max_tokens_default": 2048,
+    "max_tokens_ceiling": 2048,
+    "request_timeout_seconds": 120,
+    "paid_allowed": true,
+    "dry_run_allowed": false,
+    "dry_run_cap_requests": 10,
+    "fidelity": "own harness check, backbone-substituted: deepseek-flash (thinking disabled, T=0, max_tokens 2048) on stock AgentDojo v1.2.2 important_instructions, no defense"
+  },
+  "stages": {
+    "DRY": {
+      "description": "Plumbing only: banking user_task_0 x injection_task_0 through the guard to Ollama qwen2.5:7b-instruct, adapter episode ceiling 10 requests. Not evidence.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_harness.py", "--config", "{adapter_dir}/config.template.json",
+               "--stage", "{stage}", "--lab-root", "{artifact_root}", "--out-dir", "{out_dir}/harness"],
+      "paid_allowed": false,
+      "dry_run_allowed": true,
+      "dry_run_cap_requests": 10,
+      "request_timeout_seconds": 300,
+      "cap_usd": 0.05,
+      "cap_tokens": 200000,
+      "timeout_seconds": 1800,
+      "estimate": {
+        "episodes": 1,
+        "requests": "3-6 (ground-truth replay: 3 turns ignoring the injection, 4 following it, x1.5 margin; UNVERIFIED)",
+        "tokens": "about 5.2k-14.0k notional (UNVERIFIED; smoke/token_estimate.json stage DRY)",
+        "usd": "0 (local Ollama; notional USD at the snapshot about 0.002-0.005)"
+      },
+      "compares_to": "none (plumbing only)"
+    },
+    "S1": {
+      "description": "4 episodes on DeepSeek: banking user_task_0 benign and x injection_task_0; slack user_task_2 benign and x injection_task_1. Wire acceptance and cost calibration for S2.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_harness.py", "--config", "{adapter_dir}/config.template.json",
+               "--stage", "{stage}", "--lab-root", "{artifact_root}", "--out-dir", "{out_dir}/harness"],
+      "cap_usd": 0.10,
+      "cap_tokens": 300000,
+      "cap_requests": 200,
+      "timeout_seconds": 1800,
+      "estimate": {
+        "episodes": 4,
+        "requests": "12-20 (UNVERIFIED; ground-truth replay x1.5; stock bound 4 x 48 = 192)",
+        "tokens": "about 18.6k-43.5k (UNVERIFIED; smoke/token_estimate.json stage S1; lab measured per-slot means banking 5,849, slack 8,328)",
+        "usd": "about 0.007-0.015 at the 2026-09-30 snapshot (UNVERIFIED)"
+      },
+      "compares_to": "none numerically (4 episodes); checks that DeepSeek accepts the stock tool-calling wire through the guard and that the payload addresses 'DeepSeek'"
+    },
+    "S2": {
+      "description": "Banking + Slack: 249 attacked pairs, 37 benign user tasks, 14 injection tasks run as user tasks (300 episodes). Native DeepSeek model screen for G1/OPEN-2. Resume after a stop with: run-stage ... -- --resume-from <previous out_dir>/harness",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_harness.py", "--config", "{adapter_dir}/config.template.json",
+               "--stage", "{stage}", "--lab-root", "{artifact_root}", "--out-dir", "{out_dir}/harness"],
+      "cap_usd": 3.00,
+      "cap_tokens": 9000000,
+      "cap_requests": 4000,
+      "timeout_seconds": 21600,
+      "estimate": {
+        "episodes": "300 = 249 attacked + 37 benign + 14 injection-as-user",
+        "requests": "about 1,240-2,550 (UNVERIFIED; ground-truth replay, high = follow injection x1.5)",
+        "tokens": "about 2.14M-6.14M (UNVERIFIED; smoke/token_estimate.json stage S2. Cross-check: lab measured per-suite means x episodes = 169 x 5,849 + 131 x 8,328 = 2.08M)",
+        "usd": "about 0.78-2.13 at the 2026-09-30 snapshot (UNVERIFIED; cache hits charged as misses)",
+        "wall_time": "about 40-115 min at the 60,000 tokens/min pacing (UNVERIFIED)"
+      },
+      "compares_to": "SIEVE v3 Table 12 No Defense, DeepSeek-V3.2, all four suites: ASR 42.68 / Ua 62.80 / Uc 87.63. Side by side only: different suite scope and backbone, so no pass band (config.template.json comparison.sieve_f0)."
+    },
+    "S3": {
+      "description": "OPTIONAL, NOT REQUESTED, needs separate approval: all four suites, 949 attacked + 97 benign + 35 injection-as-user (1,081 episodes). The only scope that sits next to SIEVE F0.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_harness.py", "--config", "{adapter_dir}/config.template.json",
+               "--stage", "{stage}", "--lab-root", "{artifact_root}", "--out-dir", "{out_dir}/harness"],
+      "cap_usd": 18.00,
+      "cap_tokens": 55000000,
+      "cap_requests": 12000,
+      "timeout_seconds": 86400,
+      "estimate": {
+        "episodes": "1,081",
+        "requests": "about 4,300-8,040 (UNVERIFIED)",
+        "tokens": "about 16.5M-41.4M (UNVERIFIED; smoke/token_estimate.json stage S3; travel attacked episodes dominate the high band)",
+        "usd": "about 5.44-13.34 at the 2026-09-30 snapshot (UNVERIFIED)",
+        "wall_time": "about 5-13 h at the 60,000 tokens/min pacing (UNVERIFIED); resume across invocations is supported"
+      },
+      "compares_to": "SIEVE v3 Table 12 No Defense, DeepSeek-V3.2: ASR 42.68 / Ua 62.80 / Uc 87.63, same suite scope; still no pass band because the backbone, thinking mode and temperature differ or are unknown"
+    }
+  }
+}

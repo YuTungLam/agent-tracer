@@ -1,0 +1,166 @@
+{
+  "schema": "auditor-adapter-config/v1",
+  "artifact": "attriguard",
+  "artifact_ref": {
+    "paper": "He et al., AttriGuard, USENIX Security 2026, arXiv:2603.10749v2",
+    "zenodo_doi": "10.5281/zenodo.20308739",
+    "zip_sha256": "81c6d58fdd09c8af217e59dc752dc032dab32c29e204dd7f9d936592174bbf1a",
+    "entry": "src/usenix-artifacts/main/pipeline"
+  },
+  "paths_from_env": {
+    "ATTRIGUARD_SRC": "the artifact's src/usenix-artifacts/main/pipeline directory",
+    "ATTRIGUARD_PYTHON": "python executable of the artifact's own venv (agentdojo 0.1.35, openai 2.x)",
+    "AUDITOR_OUT": "run directory for this stage (traces, ledgers, receipt)",
+    "AUDITOR_GUARD_URL": "loopback base URL of the budget guard; falls back to OPENAI_BASE_URL"
+  },
+  "adapter_command": [
+    "{ATTRIGUARD_PYTHON}",
+    "{adapter_dir}/run_attriguard.py",
+    "--artifact-src",
+    "{ATTRIGUARD_SRC}",
+    "--config",
+    "{adapter_dir}/config.template.json",
+    "--stage",
+    "{stage}",
+    "--out",
+    "{AUDITOR_OUT}"
+  ],
+  "benchmark_version": "v1.2.2",
+  "attack_model_name": "AI assistant",
+  "backbone": {
+    "model": "deepseek-flash",
+    "agent_temperature": 0.0,
+    "aux_temperature": 0.2,
+    "aux_top_p": 0.9,
+    "max_tokens": 2048,
+    "judge_logprobs": "auto",
+    "request_timeout_seconds": 120
+  },
+  "attriguard_env": {
+    "ATTRIGUARD_SURVIVAL": "fuzzy",
+    "ATTRIGUARD_SKIP_EMPTY_AUDIT": "1",
+    "ATTRIGUARD_DEBUG": "1"
+  },
+  "rows": {
+    "no_defense": {
+      "defense": null,
+      "attack": "tool_knowledge"
+    },
+    "attriguard_l2": {
+      "defense": "attriguard",
+      "level": 2,
+      "attack": "tool_knowledge"
+    }
+  },
+  "price_snapshot_usd_per_mtok": {
+    "input": 0.3,
+    "output": 1.2,
+    "source": "agentdojo-lab price snapshot 2026-09-30; UNVERIFIED on run day, re-check before S2"
+  },
+  "stages": {
+    "DRY": {
+      "purpose": "plumbing only, Ollama upstream through the guard; not a measurement",
+      "rows": [
+        "attriguard_l2"
+      ],
+      "suites": {
+        "banking": {
+          "pairs": [
+            [
+              "user_task_0",
+              "injection_task_0"
+            ]
+          ]
+        }
+      },
+      "benign": false,
+      "cap_usd": 0.05,
+      "cap_tokens": 120000,
+      "max_requests": 10
+    },
+    "S1": {
+      "purpose": "wire check on DeepSeek (tool calls, list content, logprobs on the judge) and a measured per-episode token profile",
+      "rows": [
+        "attriguard_l2"
+      ],
+      "suites": {
+        "banking": {
+          "pairs": [
+            [
+              "user_task_0",
+              "injection_task_0"
+            ]
+          ]
+        },
+        "slack": {
+          "pairs": [
+            [
+              "user_task_0",
+              "injection_task_3"
+            ]
+          ]
+        }
+      },
+      "benign": false,
+      "cap_usd": 0.1,
+      "cap_tokens": 150000,
+      "estimate": {
+        "episodes": 2,
+        "requests": "25-40 (UNVERIFIED)",
+        "tokens_per_episode": "banking 15k-25k, slack 20k-30k (UNVERIFIED; see README 'Estimate basis')",
+        "tokens": "35k-55k, high 80k",
+        "usd": "0.015-0.035 at the 2026-09-30 snapshot (UNVERIFIED)"
+      }
+    },
+    "S2": {
+      "purpose": "Table 4 setting: Banking+Slack, ToolKnowledge, lambda=2; no-defense and AttriGuard rows, benign + attacked",
+      "rows": [
+        "no_defense",
+        "attriguard_l2"
+      ],
+      "suites": {
+        "banking": {
+          "user_tasks": "*",
+          "exclude_user_tasks": [
+            "user_task_12"
+          ],
+          "injection_tasks": "*"
+        },
+        "slack": {
+          "user_tasks": "*",
+          "exclude_user_tasks": [
+            "user_task_18",
+            "user_task_19"
+          ],
+          "injection_tasks": "*"
+        }
+      },
+      "benign": true,
+      "attacked": true,
+      "cap_usd": 10.0,
+      "cap_tokens": 25000000,
+      "estimate": {
+        "episodes": "528 = 2 rows x (34 benign + 230 attacked)",
+        "requests": "4.3k-6.4k (UNVERIFIED)",
+        "tokens": "6.4M-13.5M: no_defense 1.8M-2.7M, attriguard_l2 4.5M-10.8M (UNVERIFIED; recalibrate from S1)",
+        "usd": "2.4-5.2 at the 2026-09-30 snapshot (UNVERIFIED)"
+      },
+      "compares_to": {
+        "attriguard_l2": "Table 4 'AttriGuard (default, lambda=2)', p.13, GPT-4.1-mini backbone+aux: BU 70.59% (24/34), UA 66.96% (154/230), ASR 0.00% (0/230)",
+        "no_defense": "Fig. 2(d) GPT-4.1-mini ToolKnowledge, digitised: ASR Banking ~73.8%, Slack ~75.8% (approximate)",
+        "fidelity_kind": "backbone-substituted (DeepSeek deepseek-flash replaces GPT-4.1-mini as target and aux); not an exact reproduction"
+      }
+    }
+  },
+  "deviations": [
+    "D1 backbone substitution: deepseek-flash for target, shadow, attenuation and judge (paper Table 4: GPT-4.1-mini for both).",
+    "D2 model routing: the artifact's own OpenAILLM on a routed client instead of provider 'openai'/'local'; the local backend hard-codes ids and ports (my_agent_pipeline.py:117-135). Aux LLMs keep the released openai-backend settings (temperature 0.2, top_p 0.9).",
+    "D3 wire normalisation (same as the lab's deepseek_adapter): list content joined to a string, tool-message 'name' dropped, developer->system, thinking disabled, max_tokens=2048 added (the artifact sets no output cap), SDK max_retries=0 (the artifact's own tenacity retry, 3 attempts, is kept).",
+    "D4 judge logprobs: forwarded as released (logprobs=True, top_logprobs=5). If DeepSeek rejects them with HTTP 400/422, the adapter raises the exact wording the released fallback handles ('logprobs ... unsupported') and stops sending logprobs for the rest of the run. Whether deepseek-flash returns logprobs is UNVERIFIED; S1 records it.",
+    "D5 attack text: agentdojo 0.1.35 has no DeepSeek MODEL_NAMES entry; the adapter registers 'deepseek-flash' -> 'AI assistant' (the paper's model-name text for GPT-4.1-mini is UNVERIFIED, NOTES.md row 12).",
+    "D6 suite: v1.2.2 with explicit exclusions (banking minus user_task_12; slack minus user_task_18/19) so slack injection_task_5 stays in: 230 attacked instances, matching the Table 4 arithmetic rather than the release's v1.2.3 (211).",
+    "D7 episode driver: AgentDojo run_task_with/without_injection_tasks per episode instead of my_benchmark.benchmark_suite, so the injection-task-as-user-task pre-run (not used by BU/UA/ASR) is skipped, load_dotenv is never called, and rows are interleaved per pair.",
+    "D8 instrumentation: a subclass of AttriGuardExecutionLoop records the decision route of each _fuzzy_survive call; it calls the released method unchanged.",
+    "D9 run count: one run per row (the paper reports 3-5 runs; NOTES.md section 7 blocker 6)."
+  ]
+}

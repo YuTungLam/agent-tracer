@@ -1,0 +1,68 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "adi",
+  "about": "Runner stages for common/deepseek_route.py run-stage. Case lists, estimates and the fidelity target live in config.template.json (same stage names). Paths come from --artifact-root / AUDITOR_ARTIFACTS_ROOT; nothing machine-specific is stored here. Every argv names its suites with -s (ADI defect D1).",
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "max_tokens_default": 2048,
+    "max_tokens_ceiling": 2048,
+    "request_timeout_seconds": 120,
+    "paid_allowed": true,
+    "dry_run_allowed": true,
+    "dry_run_cap_requests": 10,
+    "fidelity": "backbone-substituted: deepseek-flash (thinking disabled, T=0) replaces GPT-5.2 as the baseline ReAct agent; ADI has no auxiliary or judge model"
+  },
+  "stages": {
+    "DRY": {
+      "description": "Plumbing only: banking/user_task_15 ADI case 0 through the guard to Ollama qwen2.5:7b-instruct. Not a measurement.",
+      "argv": ["{artifact_python}", "{adapter_dir}/adi_deepseek.py", "--config", "{adapter_dir}/config.template.json",
+               "--stage", "{stage}", "-s", "banking", "--out-dir", "{out_dir}/adapter"],
+      "paid_allowed": false,
+      "cap_usd": 0.01,
+      "cap_tokens": 60000,
+      "timeout_seconds": 1800,
+      "estimate": {
+        "episodes": 1,
+        "requests": "<= 8 (adapter ceiling, SDK retries 0); prior pipeline-agent smoke used 4 (NOTES.md section 5b)",
+        "tokens": "about 10k-40k notional (UNVERIFIED; banking ground-truth proxy 5.0k-6.6k per episode)",
+        "usd": "0 (local)"
+      },
+      "compares_to": "none (plumbing only)"
+    },
+    "S1": {
+      "description": "3 authority ADI cases on DeepSeek: banking/user_task_15[0], slack/user_task_13[0], workspace/user_task_7[0]. Confirms DeepSeek accepts the LangChain wire and calibrates tokens per episode for S2.",
+      "argv": ["{artifact_python}", "{adapter_dir}/adi_deepseek.py", "--config", "{adapter_dir}/config.template.json",
+               "--stage", "{stage}", "-s", "banking", "-s", "slack", "-s", "workspace", "--out-dir", "{out_dir}/adapter"],
+      "cap_usd": 0.25,
+      "cap_tokens": 400000,
+      "cap_requests": 90,
+      "timeout_seconds": 3600,
+      "estimate": {
+        "episodes": 3,
+        "requests": "about 9-25 (UNVERIFIED; lab 4.06 requests per native slot, ADI ground truth 2-6 steps)",
+        "tokens": "about 30k-66k (UNVERIFIED; lab native per-suite means 29,560; ADI ground-truth proxy x1.5 = 48k-64k input + about 2.5k output)",
+        "usd": "about 0.010-0.022 at the 2026-09-30 snapshot (UNVERIFIED)"
+      },
+      "compares_to": "none (wire acceptance and cost calibration only)"
+    },
+    "S2": {
+      "description": "All 108 data_only_syntactic ADI cases, then all 96 benign user tasks, baseline ReAct agent on DeepSeek. Resume after a stop with: run-stage ... -- --traces-dir <previous out_dir>/adapter/traces",
+      "argv": ["{artifact_python}", "{adapter_dir}/adi_deepseek.py", "--config", "{adapter_dir}/config.template.json",
+               "--stage", "{stage}", "-s", "workspace", "-s", "slack", "-s", "banking", "-s", "travel",
+               "--out-dir", "{out_dir}/adapter"],
+      "dry_run_allowed": false,
+      "cap_usd": 5.0,
+      "cap_tokens": 12000000,
+      "cap_requests": 3400,
+      "timeout_seconds": 43200,
+      "estimate": {
+        "episodes": "204 = 108 ADI cases + 96 benign tasks",
+        "requests": "about 830-1,510 (UNVERIFIED; lab 4.06 per native slot x 204; ADI ground-truth steps 1,006 x 1.5)",
+        "tokens": "about 3.2M-7.7M (UNVERIFIED; lab native per-suite means 3,183,163; ADI ground-truth proxy x1.5 = 5.52M-7.36M input + about 0.28M output)",
+        "usd": "about 1.06-2.55 at the 2026-09-30 snapshot (UNVERIFIED; cache hits charged as misses)"
+      },
+      "compares_to": "ADI paper (arXiv:2607.05120v1 Fig. 9-10, section 6.2.2, pp.12-13), baseline ReAct with GPT-5.2-2025-12-11: ADI ASR 49.1% (53/108), benign utility 86.5% (83/96). Backbone-substituted, so reported side by side without a pass band."
+    }
+  }
+}
