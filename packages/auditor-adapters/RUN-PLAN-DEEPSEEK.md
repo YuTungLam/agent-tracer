@@ -99,7 +99,7 @@ $SMOKE  = "$RES/experiments/$DAY-deepseek-auditor-smoke-v1/raw"
 
 **Argument order.** All runner options come **before** `--`. Everything after `--` is appended to the adapter's argv.
 
-**Dry check.** Append `--plan-only` to any command to print the resolved argv and caps. It starts no guard and reads no key.
+**Dry check.** Insert `--plan-only` **before** `--` (or append it to a command that has no `--`) to print the resolved argv and caps. It starts no guard and reads no key. After `--` it would be passed to the adapter and the runner would start a real run, so run-stage now refuses `--plan-only` and the other runner options after `--` with exit 2 (RUN-PLAN-OPENAI.md section 2.7, M1).
 
 ---
 
@@ -354,8 +354,8 @@ python -c "import hashlib,pathlib,sys; r=pathlib.Path(sys.argv[1]); out=r/'check
 | # | Rule |
 | --- | --- |
 | R1 | **S0 or canary-sdk fails: stop everything.** Do not try adapters against a route that is not proven. |
-| R2 | **One run at a time.** Read `receipt.json` and the pass criteria (§6, §7.2) before the next command. Never run two paid stages in parallel; caps are per invocation, and DeepSeek rate limits are UNVERIFIED. |
-| R3 | **Exit code handling.** `0` completed: check the criteria. `3` halted: read `guard.halt_reason`, and do not rerun blindly. `2` configuration refused: fix it, $0 spent. `4` timeout: resume (R6). `5` launch failed. Any other code is the child's own failure. |
+| R2 | **One run at a time.** Read `receipt.json` and the pass criteria (§6, §7.2) before the next command. Never run two paid stages in parallel; caps are per invocation, and DeepSeek rate limits are UNVERIFIED. **No edits during a run:** launch paid runs from a pinned clean worktree (`git worktree add <dir> <commit>`), and never edit `packages/auditor-adapters` in the tree a run was launched from while its `common/.run-stage-*.lock` file exists. Receipts written by the current guard record `code.code_changed_during_run`; a run with `true` is not evidence until the change is explained. |
+| R3 | **Exit code handling.** `0` completed: check the criteria. `3` halted: read `guard.halt_reason`, and do not rerun blindly. `2` configuration refused (including a runner option placed after `--`): fix it, $0 spent. `4` timeout: resume (R6). `5` launch failed. Any other code is the child's own failure. |
 | R4 | **Fatal halts stop the whole plan until diagnosed:** `upstream_http_401/402/403` (key, balance or permission), `usage_missing` (a response without usage, charged at the estimate), `consecutive_upstream_errors`. |
 | R5 | **Any HTTP 400 from DeepSeek on an artifact's first request** means a wire mismatch. Stop that artifact and fix it in code. It costs $0. |
 | R6 | **Caps are per invocation.** A resume gets `--cap-usd` = stage cap − Σ `guard.usd` and `--cap-tokens` = stage cap − Σ `guard.total_tokens` over that stage's earlier receipts. Never pass the full cap again. |

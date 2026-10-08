@@ -1,7 +1,7 @@
 {
   "schema": "auditor-adapter-stages/v1",
   "artifact": "common",
-  "description": "Route canary for the shared DeepSeek guard. Two fixed benign requests: one plain, one native tool call with tool_choice=auto (the lab wire shape).",
+  "description": "Route canary for the shared guard. Two fixed benign requests: one plain, one native tool call with tool_choice=auto (the lab wire shape). DeepSeek stages: s0-key, s0-canary, s0-canary-sdk. OpenAI stages live under provider_stages: s0-key-openai, s1-openai-canary (RUN-PLAN-OPENAI.md).",
   "defaults": {
     "request_model": "deepseek-flash",
     "model_aliases": [],
@@ -53,6 +53,51 @@
         "usd": "about 0.0002 (UNVERIFIED)"
       },
       "compares_to": "lab DeepSeek wire contract (as s0-canary), exercised through the openai SDK the artifacts use"
+    }
+  },
+  "provider_stages": {
+    "s0-key-openai": {
+      "description": "OpenAI key check, run before any other OpenAI stage: exactly one plain request (the canary's 'pong' prompt) to gpt-4o-mini-2024-07-18, the cheapest model in the plan. The canary sends max_tokens 16; the guard clamps it to 1 and ledgers max_tokens_field max_tokens. Confirms the key, the exact model id, the Standard service tier and provider-reported usage. The receipt shows status completed with halt_reason request_cap_reached, because the single allowed request uses the whole request cap.",
+      "provider": "openai",
+      "models": ["gpt-4o-mini-2024-07-18"],
+      "request_model": "gpt-4o-mini-2024-07-18",
+      "argv": ["{python}", "{common_dir}/canary_client.py", "--out", "{out_dir}/canary.json", "--requests", "1", "--model", "{model}", "--client", "urllib"],
+      "max_tokens_default": 1,
+      "max_tokens_ceiling": 1,
+      "cap_usd": 0.001,
+      "cap_tokens": 500,
+      "cap_requests": 1,
+      "dry_run_allowed": false,
+      "estimate": {
+        "requests": 1,
+        "tokens": "about 21 (UNVERIFIED for OpenAI's tokenizer; the same prompt measured 20 prompt + 1 completion tokens on deepseek-flash in common/s0-key, 20261008-deepseek-auditor-smoke-v1)",
+        "usd": "about 0.000004 at gpt-4o-mini-2024-07-18 $0.15/M input, $0.60/M output (providers.json, fetched 2026-10-08); the guard reserves about 0.00002 before sending"
+      },
+      "compares_to": "providers.json openai wire contract; pass = HTTP 200, usage_source provider, response_model gpt-4o-mini-2024-07-18, service_tier absent or default, completion_tokens <= 1"
+    },
+    "s1-openai-canary": {
+      "description": "OpenAI route smoke over every model the OpenAI fidelity stages use: per chat model one plain request (max_completion_tokens) and one native tool call (max_tokens; max_completion_tokens for gpt-5.2), one logprobs request (top_logprobs 5) on gpt-4.1-mini, and one embeddings request (2 short inputs) on text-embedding-3-large: 10 checked requests. Then 2 wire probes on gpt-5.2 (the plain request with max_tokens, and with temperature 0) that answer RUN-PLAN-OPENAI.md open issue 3; a probe may return HTTP 400 (charged $0 by the guard, UNVERIFIED) and does not fail the canary. 12 requests. Checks that each exact id is served under its own name on the Standard tier, that both output-limit fields, tool calls, logprobs and embeddings pass the guard unchanged, and that usage (including cached_tokens) is reported.",
+      "provider": "openai",
+      "models": ["gpt-4o-mini-2024-07-18", "gpt-4.1-mini-2025-04-14", "gpt-4o-2024-05-13", "gpt-5.2-2025-12-11", "text-embedding-3-large"],
+      "request_model": "gpt-4o-mini-2024-07-18",
+      "argv": ["{python}", "{common_dir}/openai_canary.py", "--out", "{out_dir}/openai_canary.json",
+               "--chat-models", "gpt-4o-mini-2024-07-18", "gpt-4.1-mini-2025-04-14", "gpt-4o-2024-05-13", "gpt-5.2-2025-12-11",
+               "--reasoning-models", "gpt-5.2-2025-12-11",
+               "--logprobs-models", "gpt-4.1-mini-2025-04-14",
+               "--embedding-model", "text-embedding-3-large",
+               "--probe-models", "gpt-5.2-2025-12-11"],
+      "max_tokens_default": 64,
+      "max_tokens_ceiling": 64,
+      "cap_usd": 0.02,
+      "cap_tokens": 10000,
+      "cap_requests": 14,
+      "dry_run_allowed": false,
+      "estimate": {
+        "requests": 12,
+        "tokens": "about 1,600 (UNVERIFIED; per chat model about 300 prompt + at most 80 completion, scaled from the 2 canary requests on deepseek-flash: 301 prompt + 48 completion in common/s0-canary-sdk; embeddings about 20; the 2 gpt-5.2 probes about 30 prompt + at most 16 completion each)",
+        "usd": "about 0.006 (UNVERIFIED): gpt-4o-2024-05-13 about 0.003, gpt-5.2 about 0.0016 + about 0.0006 for the 2 probes, gpt-4.1-mini about 0.0003, gpt-4o-mini about 0.0001, embeddings < 0.00001 at providers.json prices"
+      },
+      "compares_to": "providers.json openai wire contract; pass = all 10 checked requests HTTP 200 (the 2 probes record an answer, 200 or 400, and are not pass/fail), every response model equals the requested id, service_tier absent or default, tool calls parse as JSON, the logprobs request returns 5 top_logprobs per token, embeddings return 2 vectors with usage.prompt_tokens"
     }
   }
 }

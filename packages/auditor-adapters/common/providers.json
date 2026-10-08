@@ -1,0 +1,107 @@
+{
+  "schema": "auditor-providers/v1",
+  "about": "Provider table for common/deepseek_route.py (the provider-aware guard). A stage declares exactly one provider; the guard forwards only to that provider's base URL with that provider's key. Prices are per 1M tokens, Standard tier, USD. A paid stage refuses any model whose price here is missing or null. Loaded and validated on every run-stage call; receipts of non-DeepSeek runs record this file's sha256.",
+  "providers": {
+    "deepseek": {
+      "description": "Unchanged DeepSeek route. The guard keeps its DeepSeek constants in code (deepseek_route.py: DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_KEY_ENV, PRICE_SNAPSHOT) so DeepSeek behaviour is byte-for-byte what it was at fe2e3e0; this entry mirrors them and run-stage refuses to start if the two disagree.",
+      "base_url": "https://api.deepseek.com",
+      "key_env": "DEEPSEEK_API_KEY",
+      "endpoints": ["chat.completions"],
+      "model_policy": "rewrite",
+      "upstream_model": "deepseek-flash",
+      "wire": "thinking={type: disabled} injected; max_completion_tokens mapped to max_tokens, default and clamp; OpenAI-only fields dropped; developer->system, tool-message name dropped, text blocks joined; embeddings refused unless a stage declares a loopback local_embeddings model",
+      "price_snapshot": {
+        "snapshot_id": "deepseek-2026-09-30-conservative-peak-uncached",
+        "input_per_million": "0.30",
+        "output_per_million": "1.20",
+        "cached_input_per_million": null,
+        "source": "packages/agentdojo-lab/scripts/run_cross_model_technical_pilot_v2.py:74-99 (PRICING_SNAPSHOTS)",
+        "verification": "UNVERIFIED on 2026-10-08 (not re-fetched by this change)"
+      }
+    },
+    "openai": {
+      "description": "OpenAI Chat Completions and Embeddings on the papers' original backbones. The model is never rewritten: each stage lists the exact model ids it may use, and anything else is refused with HTTP 400 before it is sent.",
+      "base_url": "https://api.openai.com/v1",
+      "key_env": "OPENAI_API_KEY",
+      "key_file_rule": "run-stage and serve read OPENAI_API_KEY only from the --lab-env file, which must be a dedicated file outside every git work tree and not named .env (the lab .env is loaded by load_dotenv in the lab runner and the vendored AgentDojo scripts, and OPENAI_API_KEY is the default credential of the OpenAI SDK and LangChain)",
+      "endpoints": ["chat.completions", "embeddings"],
+      "model_policy": "exact",
+      "wire": {
+        "thinking": "never added; a request that carries the DeepSeek 'thinking' field is refused",
+        "output_limit": "max_tokens and max_completion_tokens are both accepted and each is clamped to the stage ceiling; the field(s) used are ledgered as max_tokens_field; if neither is sent the guard adds max_completion_tokens = stage default and ledgers 'default:max_completion_tokens'",
+        "logprobs": "logprobs and top_logprobs (integer 0-20) pass through unchanged; the ledger records whether the response carried logprobs",
+        "service_tier": "a request may omit service_tier or send 'default'; any other value is refused. A response whose service_tier is present and not 'default' halts the stage, because these prices are Standard-tier only",
+        "refused_fields": ["thinking", "audio", "web_search_options", "prediction", "modalities other than [\"text\"]", "service_tier other than \"default\"", "message content parts other than text and refusal (image, audio and file parts are billed by rules the pre-flight estimate does not model)"],
+        "passed_through": "everything else, unchanged (no message normalisation, no dropped fields), with two exceptions: when stream is true the guard sets stream_options.include_usage = true (keeping any other stream_options keys) so that every streamed response reports usage; stream_options without stream is removed and ledgered as dropped",
+        "upstream_errors": "an upstream HTTP 4xx/5xx is ledgered and charged 0 USD; UNVERIFIED that OpenAI never bills one, so the summary counts upstream_error_responses for the dashboard reconciliation (RUN-PLAN-OPENAI.md O13). A stream that breaks before usage arrives is charged at its pre-flight reservation",
+        "usage": "prompt_tokens, completion_tokens, prompt_tokens_details.cached_tokens, completion_tokens_details.reasoning_tokens; embeddings usage.prompt_tokens (input only)"
+      },
+      "pricing": {
+        "currency": "USD",
+        "unit": "per 1M tokens",
+        "tier": "Standard (not Batch, Flex, Fast/Priority, Scale; not regional-processing or FedRAMP endpoints)",
+        "fetched": "2026-10-08",
+        "sources": [
+          "https://developers.openai.com/api/docs/pricing",
+          "https://developers.openai.com/api/docs/models/gpt-4.1-mini",
+          "https://developers.openai.com/api/docs/models/gpt-4o-mini",
+          "https://developers.openai.com/api/docs/models/gpt-4o",
+          "https://developers.openai.com/api/docs/models/gpt-5.2",
+          "https://developers.openai.com/api/docs/models/text-embedding-3-large"
+        ],
+        "page_notes": [
+          "Pricing page: 'Prices per 1M tokens.' 'Short context: <=272K input tokens. Long context: >272K input tokens.' None of the models below lists a long-context or cache-write price (dash).",
+          "Pricing page: regional processing (data residency) endpoints carry a 10% uplift for models released on or after 2026-03-05; this guard only talks to https://api.openai.com/v1, and none of these models is that new.",
+          "The pricing page gives no page date; the fetch date above is the snapshot date."
+        ],
+        "cached_input_policy": "cached input tokens (usage.prompt_tokens_details.cached_tokens) are charged at cached_input_per_million only where the pricing page lists a cached price for that model; where it is null they are charged as uncached input. Pre-flight reservations always assume no cache hit."
+      },
+      "models": {
+        "gpt-4.1-mini-2025-04-14": {
+          "kind": "chat",
+          "input_per_million": "0.40",
+          "cached_input_per_million": "0.10",
+          "output_per_million": "1.60",
+          "price_basis": "pricing page Standard row 'gpt-4.1-mini | $0.40 | $0.10 | - | $1.60'; the gpt-4.1-mini model page lists gpt-4.1-mini-2025-04-14 as its only and default snapshot at input $0.4, cached input $0.1, output $1.6. The dated id itself is not a row of the Standard table (it appears only under fine-tuning).",
+          "used_by": "attriguard (AttriGuard Table 4 backbone and auxiliary model)"
+        },
+        "gpt-4o-mini-2024-07-18": {
+          "kind": "chat",
+          "input_per_million": "0.15",
+          "cached_input_per_million": "0.075",
+          "output_per_million": "0.60",
+          "price_basis": "pricing page Standard row 'gpt-4o-mini | $0.15 | $0.075 | - | $0.60'; the gpt-4o-mini model page lists gpt-4o-mini-2024-07-18 as its only snapshot at input $0.15, cached input $0.075, output $0.6. The dated id itself is not a row of the Standard table (it appears only under fine-tuning).",
+          "used_by": "argus (ARGUS agent and judges), harness Gate H, common S0 key check"
+        },
+        "gpt-4o-2024-05-13": {
+          "kind": "chat",
+          "input_per_million": "5.00",
+          "cached_input_per_million": null,
+          "output_per_million": "15.00",
+          "price_basis": "pricing page Standard row 'gpt-4o-2024-05-13 | $5.00 | - | - | $15.00' (its own row; the gpt-4o model page shows $2.5/$1.25/$10 for the default snapshot gpt-4o-2024-08-06, which does not apply here). No cached price is listed, so cached tokens are charged as uncached.",
+          "used_by": "melon (MELON paper GPT-4o rows; agentdojo 0.1.24 ModelsEnum id)"
+        },
+        "gpt-5.2-2025-12-11": {
+          "kind": "chat",
+          "input_per_million": "1.75",
+          "cached_input_per_million": "0.175",
+          "output_per_million": "14.00",
+          "price_basis": "pricing page Standard row 'gpt-5.2 | $1.75 | $0.175 | - | $14.00'; the gpt-5.2 model page lists gpt-5.2-2025-12-11 as its default and only snapshot at input $1.75, cached input $0.175, output $14, and calls GPT-5.2 'our previous flagship model' (still listed on 2026-10-08). Reasoning tokens are billed as output.",
+          "used_by": "adi (ADI baseline ReAct backbone)"
+        },
+        "text-embedding-3-large": {
+          "kind": "embedding",
+          "input_per_million": "0.13",
+          "cached_input_per_million": null,
+          "output_per_million": null,
+          "price_basis": "pricing page Specialized models 'Embedding | text-embedding-3-large | $0.13 | - | -'; the model page lists text-embedding-3-large as its only snapshot at $0.13 per 1M tokens. Input tokens only.",
+          "used_by": "melon (MELON detection embedder, pi_detector.py hard-codes this id)"
+        }
+      },
+      "not_in_table": {
+        "gpt-4o-mini, gpt-4.1-mini, gpt-4o, gpt-5.2": "floating aliases are deliberately absent: a stage may only allow dated snapshot ids, so an alias request is refused",
+        "gpt-5.5": "PAA's second reference backbone; Standard row 'gpt-5.5 (<272K context length) | $5.00 | $0.50 | - | $30.00' on 2026-10-08. Not added: PAA reaches it through the Codex CLI, which the guard cannot meter (RUN-PLAN-OPENAI.md section 9)."
+      }
+    }
+  }
+}
