@@ -1,0 +1,79 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "h2",
+  "about": "Runner stages for common/deepseek_route.py run-stage, H2-SS matched-framing runner. The child runs with the LAB venv: pass --artifact-root <agent-tracer>/packages/agentdojo-lab. The case file path is passed with --set cases=<path to h2_cases_v1.generated.json> and referenced as {cases}. Episode selection (splits, arms, repeats, temperature, filters) lives in config.template.json under the same stage names. Caps are estimated from the measured harness profile of about 6.9k tokens per episode at about 88% cache hit (the guard charges cache hits as misses, so billed tokens are the full count); every figure is UNVERIFIED until an S1 ledger exists.",
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "model_aliases": [],
+    "max_tokens_default": 2048,
+    "max_tokens_ceiling": 2048,
+    "request_timeout_seconds": 120,
+    "paid_allowed": true,
+    "dry_run_allowed": false,
+    "dry_run_cap_requests": 10,
+    "fidelity": "own H2-SS case runner, backbone-substituted: deepseek-flash (thinking disabled, max_tokens 2048, T per stage) on vendored AgentDojo v1.2.2, authority-sink outcome oracle"
+  },
+  "stages": {
+    "DRY": {
+      "description": "Plumbing only: one account case x 4 arms x 1 repeat through the guard to Ollama qwen2.5:7b-instruct. Not evidence. Ollama is shut down, so this cannot run today.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_h2.py", "--config", "{adapter_dir}/config.template.json",
+               "--cases", "{cases}", "--stage", "{stage}", "--lab-root", "{artifact_root}", "--out-dir", "{out_dir}/h2"],
+      "paid_allowed": false,
+      "dry_run_allowed": true,
+      "dry_run_cap_requests": 40,
+      "request_timeout_seconds": 300,
+      "cap_usd": 0.05,
+      "cap_tokens": 300000,
+      "timeout_seconds": 1800,
+      "estimate": {"episodes": "about 4 (1 case x 4 arms x 1 repeat)", "tokens": "about 20k-56k notional (UNVERIFIED)", "usd": "0 (local Ollama)"},
+      "compares_to": "none (plumbing only)"
+    },
+    "S1": {
+      "description": "Smoke: the first 2 dev-split runnable email_address cases x 4 arms x 1 repeat (about 8 episodes) at T=0.7. Wire acceptance and cost calibration for S2.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_h2.py", "--config", "{adapter_dir}/config.template.json",
+               "--cases", "{cases}", "--stage", "{stage}", "--lab-root", "{artifact_root}", "--out-dir", "{out_dir}/h2"],
+      "cap_usd": 0.10,
+      "cap_tokens": 300000,
+      "cap_requests": 200,
+      "timeout_seconds": 1800,
+      "estimate": {
+        "episodes": "about 8 (2 cases x 4 arms x 1 repeat)",
+        "tokens": "about 55k (8 x 6.9k; UNVERIFIED)",
+        "usd": "about 0.02 at the 2026-09-30 snapshot (UNVERIFIED; cache hits charged as misses)"
+      },
+      "compares_to": "none numerically; checks that DeepSeek accepts the stock tool-calling wire and that the oracle resolves CLEAN->legitimate on an executable email_address case. Depends on the generated case file having a dev email_address case (split is content-dependent); if none, the S1 filter yields zero episodes and S1 is skipped with a note."
+    },
+    "S2": {
+      "description": "Pilot: all dev-split runnable cases x 4 arms x 5 repeats at T=0.7. The h2_cases_v1 build has 10 dev-runnable cases -> about 200 episodes; the cap is sized to 30 cases (600 episodes) for headroom. The FACT-minus-INSTR difference is the exploratory SS framing contrast (not protocol H2).",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_h2.py", "--config", "{adapter_dir}/config.template.json",
+               "--cases", "{cases}", "--stage", "{stage}", "--lab-root", "{artifact_root}", "--out-dir", "{out_dir}/h2"],
+      "cap_usd": 3.00,
+      "cap_tokens": 6000000,
+      "cap_requests": 8000,
+      "timeout_seconds": 21600,
+      "estimate": {
+        "episodes": "about 200 (10 dev-runnable cases x 4 arms x 5 repeats); cap sized for up to 600",
+        "tokens": "about 1.4M-4.1M (6.9k per episode at 200-600 episodes; UNVERIFIED; cache hits charged as misses)",
+        "usd": "about 0.54-1.62 at the 2026-09-30 snapshot (UNVERIFIED)",
+        "wall_time": "about 23-70 min at 60,000 tokens/min pacing (UNVERIFIED)"
+      },
+      "compares_to": "exploratory per-episode FACT-vs-INSTR attacker-executed difference on dev tasks; the executed contrast is read on the executable subset, the attempted contrast on all; no confirmatory claim"
+    },
+    "S2T0": {
+      "description": "Sensitivity: the same dev-split runnable cases x 4 arms x 1 repeat at T=0 (protocol OPEN-1 T=0 subset). About 40 episodes.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_h2.py", "--config", "{adapter_dir}/config.template.json",
+               "--cases", "{cases}", "--stage", "{stage}", "--lab-root", "{artifact_root}", "--out-dir", "{out_dir}/h2"],
+      "cap_usd": 0.60,
+      "cap_tokens": 1200000,
+      "cap_requests": 1600,
+      "timeout_seconds": 7200,
+      "estimate": {
+        "episodes": "about 40 (10 dev-runnable cases x 4 arms x 1 repeat); cap sized for up to 120",
+        "tokens": "about 0.3M-0.8M (UNVERIFIED; cache hits charged as misses)",
+        "usd": "about 0.11-0.33 at the 2026-09-30 snapshot (UNVERIFIED)"
+      },
+      "compares_to": "the T=0 sensitivity row for the SS framing contrast"
+    }
+  }
+}
