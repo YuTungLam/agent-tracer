@@ -29,6 +29,7 @@ The guard is provider-aware (the file name stays `deepseek_route.py` because eve
 | `openai_canary.py` | OpenAI route smoke over every model id of the OpenAI stages, plus two gpt-5.2 wire probes (stage `common/s1-openai-canary`). |
 | `providers.json` | Provider table: base URLs, key names, wire rules, OpenAI prices with sources and fetch date. |
 | `fidelity_rule.py` | Two-sample (Newcombe) fidelity rule for published-backbone runs; prints acceptance bands. |
+| `postprocess_gate_rows.py` | Zero-cost post-processor of the DeepSeek freeze (`PILOT-PROTOCOL-V1-DEEPSEEK-FROZEN.md` §1.3, §8): reads one run's records (h2, MELON, AttriGuard, ARGUS, PAA or reference format) plus the SS case file and writes every E1–E5 number per seed family (E0B/E1PRE never pooled): per-auditor rates with Wilson and (suite, user task) cluster-bootstrap intervals and per-cluster k/n; executability / value-kind / scope (also by executability) / delegation splits; attacker_attempted and exposure; FACT − INSTR and ASR_d − ASR_0 contrasts; started vs scored denominators; the SS catch (primary per proposal, audited-only secondary, catches without an audit verdict, INSTR+FACT pooled); route shares (AttriGuard AG-H1/AG-H2, MELON T2); attribution (ARGUS blame and `x_action_dep`, PAA blame and AER); false block fail-open and fail-closed; Gate SS-0. One PAA results dir per call. Standard library only; tests in `tests/test_postprocess_gate_rows.py`, plus real-record cross-checks in the AttriGuard, ARGUS, MELON, PAA and reference tests. |
 
 ### What the guard does to each request
 

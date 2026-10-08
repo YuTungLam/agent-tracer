@@ -394,7 +394,9 @@ def _verify_panel(panel: Path) -> dict:
     plan_sha = _sha(raw_plan)
     config_sha = _sha(raw_config)
     reference_sha = _sha(raw_references)
-    if raw_plan_digest != (plan_sha + "\n").encode("ascii"):
+    # The digest line is "<sha256 hex>\n". neurotaint_reference_panel writes it with Path.write_text,
+    # which ends it with "\r\n" on Windows; the digest itself must still match exactly.
+    if raw_plan_digest not in ((plan_sha + "\n").encode("ascii"), (plan_sha + "\r\n").encode("ascii")):
         raise ValueError("Frozen panel plan digest does not match panel-plan.json")
     if plan.get("reference_sha256") != reference_sha:
         raise ValueError("Frozen plan reference hash does not match references.jsonl")

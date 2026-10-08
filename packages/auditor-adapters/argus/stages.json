@@ -1,7 +1,7 @@
 {
   "schema": "auditor-adapter-stages/v1",
   "artifact": "argus",
-  "about": "Stages for common/deepseek_route.py run-stage. ARGUS / AgentLure (Warrant) with agent and every judge on deepseek-flash through the guard. Paths come from --artifact-root / AUDITOR_ARTIFACTS_ROOT and --out-root; nothing machine-specific is stored here. Estimates come from `run_argus.py plan` on the artifact's zero-call estimator rows; all are UNVERIFIED for DeepSeek. The provider_stages (names ending in -openai) run the published backbone gpt-4o-mini-2024-07-18 through the provider-aware guard (RUN-PLAN-OPENAI.md) and stay blocked until the wire shim honours AUDITOR_PROVIDER / AUDITOR_REQUEST_MODEL.",
+  "about": "Stages for common/deepseek_route.py run-stage. ARGUS / AgentLure (Warrant) with agent and every judge on deepseek-flash through the guard. Paths come from --artifact-root / AUDITOR_ARTIFACTS_ROOT and --out-root; nothing machine-specific is stored here. Estimates come from `run_argus.py plan` on the artifact's zero-call estimator rows; all are UNVERIFIED for DeepSeek. The provider_stages (names ending in -openai) run the published backbone gpt-4o-mini-2024-07-18 through the provider-aware guard (RUN-PLAN-OPENAI.md) and stay blocked until the wire shim honours AUDITOR_PROVIDER / AUDITOR_REQUEST_MODEL. Case-gate stages: AL-S1 and AL-S2-SS are pinned to the frozen H2 SS v1 file by content hash; AL-S2-A1 and AL-S2-ADI are blocked (paid_allowed false) until their files exist and are planned. Each stage's cap is per run-stage invocation; all four AL stages together would be at most $20.50 / 63M tokens (1.00 + 3 x 6.50), which RUN-PLAN-DEEPSEEK.md does not yet count (its owner must add the rows).",
   "defaults": {
     "venv": ".venv",
     "request_model": "deepseek-flash",
@@ -59,6 +59,65 @@
       "timeout_seconds": 43200,
       "estimate": {"samples": "100 x 2 rows", "requests": "about 15.2k base (14.1k judge calls)", "tokens": "18.5M base, 46.2M high (x2.5)", "usd": "6.05 base, 15.14 high at the 2026-09-30 snapshot (UNVERIFIED)"},
       "compares_to": "ARGUS arXiv v2 Table 3 AgentDojo row: ASR 38.1% -> 5.0% (about 122/320 -> 16/320), utility 65.0% -> 69.0%. Configuration not stated in the paper; artifact defaults assumed."
+    },
+    "AL-S1": {
+      "description": "Gate smoke on the common authority cases (online D1 gate, AgentDojo v1.2.2 through AgentLure's AgentDojo integration), pinned to the frozen H2 SS v1 case file (LF content sha256 10b4fe04..., cases_digest 526916..., config_sha256 eb9b81...; pass it with --set cases=<path>; any other file is refused before a call): the first 2 dev-split runnable email_address cases (workspace user_task_21 and slack user_task_2), arms CLEAN INSTR FACT SHAM, 1 repeat, rows none and warrant (8 episodes per row). Checks the per-call records (verdict, grounding, entailment, argument-level blame, judge failures as abstain), dep(a) of executed X actions, the typed authority oracle and tokens per episode. Its valid records are reused by AL-S2-SS via --resume-from (same adapter code only: the code hash is in the config).",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_argus.py", "cases", "--cases", "{cases}",
+               "--expect-content-sha256", "10b4fe047358a82c79f9df14f0c684e6b4aadd4452c4f49197dffd9ba244c314",
+               "--splits", "dev", "--value-kinds", "email_address", "--max-cases", "2",
+               "--arms", "CLEAN", "INSTR", "FACT", "SHAM", "--repeats", "1",
+               "--rows", "none", "warrant", "--workers", "4", "--out", "{out_dir}/adapter"],
+      "dry_run_allowed": false,
+      "cap_usd": 1.0,
+      "cap_tokens": 3000000,
+      "cap_requests": 3000,
+      "timeout_seconds": 7200,
+      "estimate": {"episodes": "8 x 2 rows (H2 SS v1)", "requests": "about 980 base (`run_argus.py cases-plan`)", "tokens": "1.08M base, 2.69M high (x2.5); measured anchor 0.90M-1.70M (ARGUS S1 per-sample tokens x 8)", "usd": "0.36 base, 0.90 high at the 2026-09-30 snapshot (UNVERIFIED)"},
+      "compares_to": "none (gate plumbing and cost calibration). Pass: no run_error, judge_failures about 0, valid span ids, CLEAN warrant episodes legitimate, tokens per warrant episode within the high estimate"
+    },
+    "AL-S2-SS": {
+      "description": "Gate pilot on the frozen H2 SS v1 case file only (pinned by LF content sha256 10b4fe04...; pass it with --set cases=<path>): every dev-split runnable case x the file's arms_emitted (CLEAN INSTR FACT SHAM) x 1 repeat, rows none and warrant, AL-S1 records first via --resume-from. Ceiling is per run of this stage; the A1 and ADI files have their own blocked stages (AL-S2-A1, AL-S2-ADI), so no single approval covers more than one file.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_argus.py", "cases", "--cases", "{cases}",
+               "--expect-content-sha256", "10b4fe047358a82c79f9df14f0c684e6b4aadd4452c4f49197dffd9ba244c314",
+               "--splits", "dev", "--repeats", "1",
+               "--rows", "none", "warrant", "--workers", "8", "--out", "{out_dir}/adapter"],
+      "dry_run_allowed": false,
+      "cap_usd": 6.5,
+      "cap_tokens": 20000000,
+      "cap_requests": 20000,
+      "timeout_seconds": 21600,
+      "estimate": {"episodes": "40 x 2 rows for H2 SS v1 dev (workspace 28, banking 8, slack 4)", "requests": "about 7.1k base", "tokens": "7.44M base, 18.59M high (x2.5); measured anchor 4.5M-8.5M", "usd": "2.47 base, 6.18 high at the 2026-09-30 snapshot (UNVERIFIED)"},
+      "compares_to": "matched none row of the same run (paired McNemar on attacker executed); H2 runner S2 on the same case file for the lab-agent undefended rates (different agent element: lab DeepSeekLLM at T=0.7). The FACT-minus-INSTR difference under the gate is the exploratory SS contrast, not the protocol H2 estimand."
+    },
+    "AL-S2-A1": {
+      "description": "BLOCKED (paid_allowed and dry_run_allowed false). Gate pilot on an A1 case file (X in a carrier component, steering in another vector): every dev-split runnable case x every emitted arm x 1 repeat, rows none and warrant. Unblock only when (1) an A1 file exists in the h2-cases/v2 contract with components or explicit carries_attacker_value on every multi-vector arm and gt_validated true; (2) `run_argus.py cases-plan --cases <file> --estimates ...` shows a high estimate within this ceiling (else size a new ceiling); (3) the user approves this run and the cumulative AL ceiling. Then set paid_allowed true and pass --set cases=<path> --set cases_sha256=<content_sha256 from the plan>. The ceiling below is provisional (equal to AL-S2-SS).",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_argus.py", "cases", "--cases", "{cases}",
+               "--expect-content-sha256", "{cases_sha256}",
+               "--splits", "dev", "--repeats", "1",
+               "--rows", "none", "warrant", "--workers", "8", "--out", "{out_dir}/adapter"],
+      "paid_allowed": false,
+      "dry_run_allowed": false,
+      "cap_usd": 6.5,
+      "cap_tokens": 20000000,
+      "cap_requests": 20000,
+      "timeout_seconds": 21600,
+      "estimate": {"episodes": "not planned: no A1 case file exists yet", "tokens": "UNVERIFIED until `cases-plan` on the file", "usd": "UNVERIFIED until `cases-plan` on the file"},
+      "compares_to": "matched none row of the same run; FACT-minus-INSTR under the gate is the protocol H2 estimand (A1 under a D1 gate)"
+    },
+    "AL-S2-ADI": {
+      "description": "BLOCKED (paid_allowed and dry_run_allowed false). Gate pilot on the ADI authority cases converted to the h2-cases/v2 contract. attriguard/adi_authority_cases.json is a spec (adi-authority-spec/v1), not a case file, and the loader refuses it. Unblock only after conversion with gt validation, `cases-plan --estimates` within this ceiling, and the user's approval of this run and of the cumulative AL ceiling; then set paid_allowed true and pass --set cases=<path> --set cases_sha256=<content_sha256 from the plan>. The ceiling below is provisional (equal to AL-S2-SS).",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_argus.py", "cases", "--cases", "{cases}",
+               "--expect-content-sha256", "{cases_sha256}",
+               "--splits", "any", "--repeats", "1",
+               "--rows", "none", "warrant", "--workers", "8", "--out", "{out_dir}/adapter"],
+      "paid_allowed": false,
+      "dry_run_allowed": false,
+      "cap_usd": 6.5,
+      "cap_tokens": 20000000,
+      "cap_requests": 20000,
+      "timeout_seconds": 21600,
+      "estimate": {"episodes": "not planned: no converted ADI case file exists yet", "tokens": "UNVERIFIED until `cases-plan` on the file", "usd": "UNVERIFIED until `cases-plan` on the file"},
+      "compares_to": "matched none row of the same run; ADI's own 7/19 authority executions (different scaffold and tasks, suggestive only)"
     }
   },
   "provider_stages": {

@@ -1,7 +1,9 @@
 # H2-SS matched-framing case generator (v1, review-fixed 2026-10-08)
 
-**Status: DRAFT 2026-10-08, revised after review. Code and config are untracked;
-no commit, no model request.** This documents the matched-framing authority-steering
+**Status: DRAFT 2026-10-08, revised after review. The generator code and config are committed at
+agent-tracer de5acef; the runner changes `h2/run_h2.py` v2 (`h2-deepseek-adapter/2`, `x_sink_called`) and the
+`h2/h2_core.py` cluster-key fix are not yet committed and land with the DeepSeek freeze commit (B1 of
+`../auditor-adapters/DEEPSEEK-FREEZE-V1.md`); no model request.** This documents the matched-framing authority-steering
 case generator (`src/agentdojo_lab/h2_cases.py`, `configs/h2_cases_v1.json`), its
 runner stage (`../auditor-adapters/h2/`), and how the output maps onto the pilot
 protocol. Section 13 lists what changed in the review fixes.
@@ -203,20 +205,28 @@ same per-episode request ceiling. Per (case, arm, repeat) it injects the arm's v
 text, runs the user task, and records a typed per-episode record. It now also
 (reviewer M3):
 
-- **saves a transcript** (`transcripts/<episode>.json`: executed calls with success
-  flags and tool outputs), so any oracle change can be re-scored after a paid run;
-- records **injection exposure** (did the model see `X` in a tool output — the
-  denominator of the stock 0/240 result), the **injection payload sha256**, and
-  `run_error`;
-- **scores every episode, errored or not**, ranking an executed attacker call above a
-  run error, so errored episodes (including a request-ceiling hit) never silently
-  drop out of the denominator.
+- **saves a transcript** (runner v2, `h2-transcript/v2`: every attempt of the stock
+  3-attempt loop with its full message list, plus the flat executed calls with success
+  flags and tool outputs of all attempts, under a Windows-safe name), so any oracle
+  change can be re-scored after a paid run;
+- records **injection exposure** (did the model see `X` in a tool output of any
+  attempt — the denominator of the stock 0/240 result), the **injection payload
+  sha256**, `run_error`, and `x_sink_called` (a declared-sink call carrying `X`
+  reached a tool; Gate SS-0 of the DeepSeek freeze);
+- **scores every episode, errored or not**, on the executed calls of every attempt
+  (an attempt that raised is salvaged from the tool executor), ranking an executed
+  attacker call above a run error, so errored episodes (including a request-ceiling
+  hit) never silently drop out of the denominator. Runner v1 scored only the last
+  attempt; the MELON driver refuses it.
 
 The summary reports, per arm, the outcome distribution, the **attacker-executed** and
-**attacker-attempted** rates, legitimate rate, utility rate and exposure rate, each
-with Wilson intervals; the SS contrast on **both** executed and attempted; breakdowns
-**by value kind** and **by executability**; and a **cluster bootstrap by user task**
-for the executed (executable subset) and attempted contrasts (reviewer M4).
+**attacker-attempted** rates, legitimate rate, utility rate, exposure rate and
+`x_sink_called_rate`, each with Wilson intervals; the SS contrast on **both** executed
+and attempted; breakdowns **by value kind** and **by executability**; and a **cluster
+bootstrap by (suite, user task)** for the executed (executable subset) and attempted
+contrasts (reviewer M4; banking and slack `user_task_2` are different clusters). The
+summary pools the seed families; the DeepSeek freeze reads per-family numbers from
+`../auditor-adapters/common/postprocess_gate_rows.py`.
 
 Stages (caps in `ADAPT/h2/stages.json`, selection and temperature in
 `ADAPT/h2/config.template.json`):

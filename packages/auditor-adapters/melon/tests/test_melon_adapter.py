@@ -307,9 +307,16 @@ class _FakeUpstream(BaseHTTPRequestHandler):
 
 ARTIFACT_DIR = os.environ.get("MELON_ARTIFACT_DIR")
 EMBEDDER_DIR = os.environ.get("MELON_EMBEDDER_DIR")
+try:  # these end-to-end tests run the 0.1.24 route; in the agentdojo-lab venv (0.1.35) see test_melon_h2.py
+    import importlib.metadata as _md
+
+    IN_ARTIFACT_VENV = _md.version("agentdojo") == "0.1.24"
+except Exception:  # noqa: BLE001
+    IN_ARTIFACT_VENV = False
 
 
-@unittest.skipUnless(ARTIFACT_DIR and EMBEDDER_DIR, "set MELON_ARTIFACT_DIR and MELON_EMBEDDER_DIR for end-to-end tests")
+@unittest.skipUnless(ARTIFACT_DIR and EMBEDDER_DIR and IN_ARTIFACT_VENV,
+                     "set MELON_ARTIFACT_DIR and MELON_EMBEDDER_DIR and run in the MELON artifact venv (agentdojo 0.1.24)")
 class EpisodeEndToEndTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

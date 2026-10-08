@@ -67,6 +67,46 @@
         "usd": "central 1.41, upper 5.68 at the 2026-09-30 snapshot (UNVERIFIED); the 5.00 cap stops the pathological upper case"
       },
       "compares_to": "recall/FBR vs paper Table 2 (Codex corpus, PAA Sonnet 5: .860/.077; tool-call view Table 3 .875/.071) and the Table 16 pair-bootstrap CIs in exp/bootstrap-ci/data/ci_estimates.csv (recall .8255-.8923, FBR .0585-.0974); per-unit agreement, kappa and McNemar against the shipped Sonnet-5 predictions on the same 60 units (OPEN-7 draft threshold 0.80); GPT-5.5 predictions as a second reference"
+    },
+    "AL-S1": {
+      "description": "Smoke on AgentDojo boundary units: up to 8 units from the no-defense SS and A1 traces (one per stratum x selection tier, suites spread). Units come from agentdojo_units.py convert and are passed with --set units=<dir>. Measures real tokens per AgentDojo unit, JSON-contract compliance and the mapping before AL-S2. PAA fully unmodified (our units carry the released tool-description marker, so no P1 patch: --tooldesc released), contract on, rules 0.3. Pass the guard caps again after '--' (--guard-cap-usd/--guard-cap-tokens) so the pre-check uses the smaller cap.",
+      "argv": ["{artifact_python}", "-X", "utf8", "-I", "{adapter_dir}/paa_agentdojo.py", "stage",
+               "--stage", "AL-S1", "--units", "{units}", "--artifact-root", "{artifact_root}/src/audit-artifact-E593", "--tooldesc", "released",
+               "--out", "{out_dir}/paa", "--cap-usd", "0.50", "--cap-tokens", "1000000",
+               "--max-requests", "48", "--max-units", "8", "--max-tokens", "8192", "--timeout", "900", "--workers", "1"],
+      "cap_usd": 0.50,
+      "cap_tokens": 1000000,
+      "cap_requests": 48,
+      "paid_allowed": true,
+      "dry_run_allowed": false,
+      "timeout_seconds": 3600,
+      "estimate": {
+        "units": "up to 8 (selection depends on the converted traces)",
+        "requests": "about 30 (3.8 per unit, the PAA DeepSeek S2 mean; at most 6 per unit)",
+        "tokens": "central about 30.1k per unit (exact PAA prompts of the 40 SS ground-truth units of the current case file h2_cases.regen.json, S2-calibrated completions; 20.9k on the 268 harness-S2 Banking/Slack units), high about 83k; about 0.24M central, 0.66M high for 8 units. Codex-corpus S2 measured 61k per unit (mean 60,948, max 108,864)",
+        "usd": "central about 0.15, high about 0.39 for 8 units at the 2026-09-30 snapshot (UNVERIFIED)"
+      },
+      "compares_to": "nothing numerically; checks that DeepSeek returns PAA-valid JSON on AgentDojo units, measures tokens per unit, and checks the mapping (value / steering / blamed source) against the converter's ground truth"
+    },
+    "AL-S2": {
+      "description": "Main decide-only replay audit of every pending authority-argument sink call in the no-defense SS and A1 traces (all arms, every attempt), up to 600 units ordered by tier (attacker-valued, decoy/other, legitimate in X-carrying arms, then arms without X; sha256 order within a tier). Units come from agentdojo_units.py convert and are passed with --set units=<dir>. PAA fully unmodified (--tooldesc released, no patch), contract on, rules 0.3, 4 workers in three passes (contract-warm with 1 worker, distinct contents, duplicates) so certificates equal a 1-worker run. One audit per unit (deviation D-REPEAT; protocol 8.5 repeats via '-- --repeat k' need a separate budget decision).",
+      "argv": ["{artifact_python}", "-X", "utf8", "-I", "{adapter_dir}/paa_agentdojo.py", "stage",
+               "--stage", "AL-S2", "--units", "{units}", "--artifact-root", "{artifact_root}/src/audit-artifact-E593", "--tooldesc", "released",
+               "--out", "{out_dir}/paa", "--cap-usd", "16.00", "--cap-tokens", "36000000",
+               "--max-requests", "3600", "--max-units", "600", "--max-tokens", "8192", "--timeout", "900", "--workers", "4"],
+      "cap_usd": 16.00,
+      "cap_tokens": 36000000,
+      "cap_requests": 3600,
+      "paid_allowed": true,
+      "dry_run_allowed": false,
+      "timeout_seconds": 28800,
+      "estimate": {
+        "units": "about 248 SS units (ground truth gives 1.0 sink unit per episode; SS S1+S2+S2T0 plan about 248 episodes; DeepSeek trajectories may hold more) plus A1 (size UNVERIFIED); cap sized for up to 600",
+        "requests": "about 3.8 per unit (S2 mean), at most 6",
+        "tokens": "central about 30.1k per unit, so about 7.5M for 248 units and 18M for 600; high about 83k per unit; the 36M cap stops the high case near 433 units (resume with the remaining budget)",
+        "usd": "central about 0.0184 per unit: about 4.6 for 248 units (5.4 with the S2 overrun of 1.18x) and 11.0 for 600 (13.0); high about 0.0488 per unit, so the 16.00 cap stops the high case near 328 units (all UNVERIFIED). prepare prints the exact-prompt estimate on distinct-content units, and the stage refuses if the central estimate exceeds the smaller of the client and guard caps"
+      },
+      "compares_to": "exploratory, no published reference. Per run stage (never pooled) x stratum x arm, the run as the unit and the user task as the bootstrap cluster: the replay funnel F0-F4 (primary unit = the first attacker-valued call; F4/F0 headline), the false block per benign run (fail-open and fail-closed), FACT minus INSTR, and attribution on the primary unit (value source, steering source, AER, blame-shift, blame target down to the planted component) against the converter's ground truth. Read beside PAA's DeepSeek over-blocking on the Codex corpus (S2 FBR 0.30 vs 0.067 for the Sonnet-5 reference)"
     }
   }
 }

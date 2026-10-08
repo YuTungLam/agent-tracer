@@ -30,6 +30,8 @@ class FakeUpstream:
         self.lock = threading.Lock()
         self.refuse_after: int | None = None  # HTTP 402 "budget" refusals from this request count on
         self.fail_status: int | None = None  # a non-budget error status for every request
+        # Optional scripted replies: responder(body) -> assistant message dict (or None for the default).
+        self.responder = None
         server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         server.daemon_threads = True
         self.server = server
@@ -54,15 +56,17 @@ class FakeUpstream:
                     return self._send(upstream.fail_status, {"error": {"message": "upstream exploded"}})
                 if upstream.refuse_after is not None and n > upstream.refuse_after:
                     return self._send(402, {"error": {"message": "stage budget exhausted", "code": "budget"}})
+                scripted = upstream.responder(body) if upstream.responder is not None else None
                 if body.get("tools"):
-                    message = {"role": "assistant", "content": "Done."}
+                    message = scripted or {"role": "assistant", "content": "Done."}
                     usage = {"prompt_tokens": 100, "completion_tokens": 5, "total_tokens": 105}
                 else:
-                    message = {"role": "assistant", "content": json.dumps(JUDGE_REPLY)}
+                    message = scripted or {"role": "assistant", "content": json.dumps(JUDGE_REPLY)}
                     usage = {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60}
+                finish = "tool_calls" if message.get("tool_calls") else "stop"
                 return self._send(200, {"id": f"fake-{n}", "object": "chat.completion", "created": 0,
                                         "model": body.get("model"),
-                                        "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+                                        "choices": [{"index": 0, "message": message, "finish_reason": finish}],
                                         "usage": usage})
 
             def _send(self, status, payload):

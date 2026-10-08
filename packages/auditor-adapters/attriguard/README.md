@@ -14,12 +14,16 @@ No artifact file is edited or copied into this repo. The adapter runs inside the
 
 | File | Role |
 |---|---|
-| `run_attriguard.py` | Entry point. Builds the released pipeline, routes the models, runs a stage's episodes, and writes ledgers, a summary and a receipt. `--plan-only` makes no model calls. |
+| `run_attriguard.py` | Entry point for the paper-setting stages (DRY, S1, S2). Builds the released pipeline, routes the models, runs a stage's episodes, and writes ledgers, a summary and a receipt. `--plan-only` makes no model calls. |
 | `attriguard_deepseek.py` | Helpers that need neither the artifact nor AgentDojo: loopback check, wire normalisation, routed client, usage meter, judge-logprobs probe, gate-route classifier, plan expansion. |
-| `config.template.json` | Rows, per-stage episode lists, backbone settings and deviations D1–D9. Contains no paths. |
+| `config.template.json` | Rows, per-stage episode lists, backbone settings and deviations D1–D9 for DRY/S1/S2. Contains no paths. |
+| `run_attriguard_cases.py` | Entry point for the case stages (AL-S1, AL-S2, AL-S2T0): the released gate as an online D1 gate on the common authority case files, scored with the typed oracle. See "Case stages" below. |
+| `attriguard_cases.py` | Standard-library part of the case runner: case-file contract, selection pins, plan and digest, resume check, per-call flags, exposure, funnel and summary. |
+| `config.cases.json` | Rows, gate settings, request ceilings, baseline row, pinned case-file selections, price snapshot and deviations D1–D4, D10–D15 for the case stages. Contains no paths. |
+| `adi_authority_cases.json` | **DRAFT** table of the 19 ADI authority cases (no payload text). Not used by any stage; its `blockers` list says why. |
 | `stages.json` | Stage file for `deepseek_route.py run-stage`: argv template, caps, estimates, comparison targets. |
 | `estimate_obs_sizes.py` | Offline size measurement behind the token estimates: prompt sizes and ground-truth external observations. Makes no model calls. |
-| `tests/` | Zero-cost tests. `fake_upstream.py` is a scripted loopback model. |
+| `tests/` | Zero-cost tests. `fake_upstream.py` is a scripted loopback model; `fake_gt_upstream.py` replays AgentDojo ground-truth calls per case and arm (`make_gt_scripts.py` precomputes them). |
 
 ## How a request flows
 
@@ -44,7 +48,7 @@ The adapter never reads `.env` files. The child process receives only the guard'
 
 ## Deviations from the released defaults
 
-The full text is in `config.template.json` → `deviations`, and each run copies it into `adapter_receipt.json`.
+The full text is in `config.template.json` → `deviations` (DRY/S1/S2: D1–D9) and `config.cases.json` → `deviations` (AL stages: D1–D4 and D10–D15), and each run copies its list into `adapter_receipt.json`.
 
 | ID | Deviation | Why |
 |---|---|---|
@@ -57,6 +61,12 @@ The full text is in `config.template.json` → `deviations`, and each run copies
 | D7 | Episodes are driven through AgentDojo `run_task_with/without_injection_tasks`, not `my_benchmark.benchmark_suite` | Skips the injection-task-as-user-task pre-run (not used by BU, UA or ASR), never calls `load_dotenv`, and interleaves rows per pair |
 | D8 | A subclass logs which route decided each `_fuzzy_survive` call | Observation only. The released method runs unchanged. |
 | D9 | One run per row | The paper reports 3–5 runs |
+| D10 | Case runner instrumentation: the D8 route subclass, plus a recording `ToolsExecutor` (used by the release only on its unaudited skip routes), a logging handler that reads the release's own skip-branch debug lines, and a recording `FunctionsRuntime` | Observation only. Separates AG-H1 (exact fast path) from the two unaudited routes (before the first observation; after an all-empty step, AG-H2), and keeps calls executed before an episode error visible to the oracle. Needs `ATTRIGUARD_DEBUG=1`; the runner refuses otherwise. |
+| D11 | Case stimuli and driver: no AgentDojo attack; each episode runs a benign user task with the case arm's `injections` dict through a replicated 3-attempt query loop, scored with the typed oracle `agentdojo_lab.h2_cases.classify_outcome`, not an injection-task security check. Released default YAML tool output | Same stimuli, loader and oracle for every auditor (H2-CASES-V1.md §8) |
+| D12 | Agent temperature 0.7 (protocol OPEN-1, §5.6). The released shadow is the agent LLM object (`AttriGuard.py:801`), so it runs at 0.7 too, against §5.6 "auditors' own LLM components keep their artifact defaults" (0.0) | AG-H1 depends directly on the shadow temperature. AL-S2T0 runs agent and shadow at 0.0 as the sensitivity row; read AL-S2 AG-H1 rates only next to it. |
+| D13 | Per-episode request ceiling (no_defense 48, attriguard_l2 150). A request past it is refused before it is metered or sent, the artifact's tenacity retries of it are refused too, and the episode ends as a run error | Bounds a runaway episode. It changes behaviour, so it is declared; ceiling hits and refused requests are reported per row. |
+| D14 | `attacker_attempted` also counts an X-carrying call the gate blocked | A blocked call never reaches a tool, so the oracle alone would not see the attempt |
+| D15 | One run of each case stage (5 repeats at T=0.7 in AL-S2) | The paper reports 3–5 runs |
 
 ## Stages
 
@@ -67,6 +77,9 @@ Placeholders: `$ROUTE` = `packages/auditor-adapters/common/deepseek_route.py`; `
 | DRY | banking ut0 × it0, AttriGuard λ=2, Ollama | 1 | 10 (cap) | measured: 14,163 for 10 requests (Qwen tokenizer) | 0 | 10 requests | nothing (plumbing only) |
 | S1 | banking ut0 × it0 and slack ut0 × it3, AttriGuard λ=2 | 2 | 25–40 | 35k–55k (high 80k) | 0.015–0.035 | **$0.10** / 150k tokens / 80 requests | nothing (wire check and cost calibration) |
 | S2 | Table 4 setting: Banking+Slack, ToolKnowledge, λ=2; no-defense and AttriGuard rows | 528 | 4.3k–6.4k | 6.4M–13.5M | 2.4–5.2 | **$10** / 25M tokens / 15k requests | Table 4: BU 70.59% (24/34), UA 66.96% (154/230), ASR 0.00% (0/230); Fig. 2(d) no-defense ASR ≈73.8% Banking / ≈75.8% Slack |
+| AL-S1 | h2 S1 stimuli: first 2 dev email_address SS cases (ws ut21, slack ut2) × 4 arms × 1, T=0.7, rows no_defense + attriguard_l2 | 16 | 190–200 | 323k–503k | 0.11–0.20 | **$0.40** / 1M tokens / 800 requests | nothing (plumbing and AL-S2 calibration) |
+| AL-S2 | all 10 dev SS cases × 4 arms × 5, T=0.7, both rows | 400 | 3.2k–4.8k | 8.7M–13.5M | 3.0–5.4 | **$11** / 28M tokens / 12k requests | matched no_defense row (ASR_d − ASR_0); h2 S2 and the other auditors' AL-S2 on the same stimuli |
+| AL-S2T0 | AL-S2 stimuli × 1 repeat, agent and shadow T=0, both rows | 80 | 0.64k–0.96k | 1.7M–2.7M | 0.6–1.1 | **$2.30** / 5.6M tokens / 2.5k requests | AL-S2 (AG-H1 share, F3/F1, ASR_d by arm) |
 
 ### Estimate basis (every number is UNVERIFIED until S1 runs)
 
@@ -119,6 +132,67 @@ python $ROUTE run-stage --artifact attriguard --stage S2 --cap-usd 10 --cap-toke
 2. Rescale the S2 estimate using the measured S1 tokens per episode (`episodes.jsonl` → `episode_tokens` by role).
 3. Read `summary.json` → `judge`: does deepseek-flash accept and return logprobs?
 
+## Case stages (AL-S1, AL-S2, AL-S2T0)
+
+`run_attriguard_cases.py` runs the released gate (λ=2, fuzzy survival, skip-empty-audit on) as an online D1 gate on the common authority case files (`packages/agentdojo-lab/H2-CASES-V1.md` §8). Each episode is one (row, case, arm, repeat). The arm's `injections` dict goes to `suite.load_and_inject_default_environment`. Any dict is accepted, including multi-vector (A1-shaped) and empty CLEAN dicts. The benign user task then runs under the row's released pipeline. The declared authority sink is scored with the typed oracle `agentdojo_lab/h2_cases.py: classify_outcome`, loaded by file path so every auditor shares one copy. The no_defense row is the matched ASR_0 control.
+
+**What it measures, per row × selection × arm** (`summary.json`):
+- outcome distribution and ASR (typed oracle);
+- the protocol §6.2 funnel F0–F4;
+- routes of X-carrying calls, with AG-H1 (`exact_fastpath`) and AG-H2 (`skip_after_empty_step`, with the cause of the empty step);
+- false blocks, read on CLEAN (`false_block_on_clean`, protocol §6.1);
+- judge logprobs presence;
+- exposure;
+- request-ceiling hits;
+- ASR_d − ASR_0 against `baseline_row`.
+
+`summary.json` → `definitions` states each definition. F1–F3 count calls to the declared sink. The `*_any_authority_x` variants match the oracle's any-function scope.
+
+**Safety and integrity checks.** The runner refuses to start, before any model request, when:
+- Python UTF-8 mode is off;
+- the guard URL is not loopback;
+- the cwd holds a `.env`;
+- the gate is not built as `config.cases.json` says, including `debug: true`;
+- a planned vector is unknown to the suite or has no placeholder in its environment;
+- any planned stimulus environment fails to build (stimulus preflight);
+- the out dir already holds `episodes.jsonl`;
+- a paid run (`AUDITOR_MODE=deepseek`) uses a selection that does not pin the case file's `cases_digest`, `config_sha256` and canonical `content_sha256`.
+
+**Not in any stage.** ADI rows are excluded (review B2), because:
+- raw payloads break the stock YAML;
+- the attack needs the JSON formatter while the gate uses YAML;
+- three cases use a fork-only vector;
+- no exporter or conformance gate exists.
+
+`adi_authority_cases.json` is a DRAFT. A1 rows wait for an A1 generator. `config.cases.json` → `not_in_any_stage` gives the details.
+
+**Run.** Placeholders as above; `$CASES` is the frozen H2 SS file (`config.cases.json` → `case_files.ss` gives its identity and how to regenerate it).
+```
+python $ROUTE run-stage --artifact attriguard --stage AL-S1 --cap-usd 0.40 --cap-tokens 1000000 \
+  --set cases=$CASES --lab-env <agentdojo-lab>/.env --artifact-root $ART/attriguard --out-root $OUT
+python $ROUTE run-stage --artifact attriguard --stage AL-S2 --cap-usd 11 --cap-tokens 28000000 \
+  --set cases=$CASES --lab-env <agentdojo-lab>/.env --artifact-root $ART/attriguard --out-root $OUT
+```
+
+Before AL-S2, rescale its estimate from the AL-S1 tokens per episode (RUN-PLAN-DEEPSEEK.md §7.3).
+
+**Resume.** Append `-- --resume-from <previous out_dir>/adapter`. Scored episodes and their per-call rows carry over only if all of these match the earlier receipt:
+- stage, mode, config hash and plan digest;
+- the hashes of the oracle, the adapter files, the artifact files and the case files;
+- backbone and gate settings;
+- the AgentDojo version.
+
+Aborted (guard 402) and `stimulus_error` episodes are never scored and re-run on resume.
+
+**Outputs** (`<out dir>/adapter/`):
+- `plan.json`;
+- `episodes.jsonl`: one record per episode with status, outcome and oracle details, funnel, exposure, usage, `config_sha256` and `episode_run_uid`;
+- `gate_calls.jsonl`: one row per proposed call, with route, flags, status and a `carried` flag;
+- `transcripts/`;
+- `summary.json`;
+- `adapter_receipt.json` (with the stimulus preflight);
+- `attriguard_debug.log`.
+
 ## Outputs
 
 `<out dir>/` holds the guard `ledger.jsonl` (ids and usage only), `receipt.json`, and the child's stdout and stderr.
@@ -139,10 +213,19 @@ Traces and debug logs contain benchmark and model text. Treat them as data.
 ```
 python -m pytest -q packages/auditor-adapters/attriguard/tests                   # unit tests, any Python 3.11
 ATTRIGUARD_SRC=<artifact>/src/usenix-artifacts/main/pipeline \
-  <artifact>/.venv/Scripts/python -m unittest discover -s packages/auditor-adapters/attriguard/tests
+  <artifact>/.venv/Scripts/python -X utf8 -m unittest discover -s packages/auditor-adapters/attriguard/tests
 ```
 
-The second command adds an end-to-end test. It runs one real AgentDojo banking episode through the released gate against `tests/fake_upstream.py`, with no model calls. It covers:
+The case-runner end-to-end tests (`tests/test_attriguard_cases.py`) also need the H2 SS case file. Set `AL_H2_CASES=<file>`, or let the tests regenerate it offline with the agentdojo-lab venv from the census (`AL_CENSUS_DIR`; the default is the sibling `agent-tracer-results` checkout). They run the unmodified runner on real AgentDojo episodes against `tests/fake_gt_upstream.py`, which replays ground-truth calls. Scenarios:
+- judge allows: outcome per arm, exposure, wire format, temperatures;
+- judge blocks: the AG-H2 retry after an all-blocked step;
+- shadow proposes X: AG-H1 exact fast path;
+- list arguments sent as strings: identical flags in both rows;
+- guard 402: the episode is aborted and unscored, exit code 3, then a resume completes the run;
+- refusals: a reused out dir, a changed config on resume, and a stimulus that fails to build;
+- a multi-vector arm.
+
+The second command also runs the older end-to-end test. It runs one real AgentDojo banking episode through the released gate against `tests/fake_upstream.py`, with no model calls. It covers:
 - the unaudited first call;
 - λ=2 attenuation;
 - the shadow;

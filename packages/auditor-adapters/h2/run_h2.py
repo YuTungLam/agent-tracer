@@ -14,6 +14,18 @@ injection-task attack), runs the user task once, extracts the executed calls and
 the native post-state, and records a typed outcome
 (attacker / other / legitimate / no_call / task_failure) plus AgentDojo utility.
 
+Every episode writes one transcript, ``transcripts/<seq>-<arm>-r<repeat>-<hash>.json``
+(a Windows-safe name; the episode id itself holds ``:`` and ``|``), recorded as the
+record's ``transcript_path``. It keeps every attempt of the stock 3-attempt query loop
+as ``attempts: [{index, ended, messages}]`` with the full AgentDojo message list
+(assistant text, call ids, untruncated tool errors), plus the flat
+``executed_calls`` / ``tool_outputs`` of all attempts. The task environment carries
+over between attempts, so calls from every attempt count for the oracle. If an
+attempt raises (an upstream 5xx or timeout, the request ceiling), the pipeline's
+message list and environment as last output by the ToolsExecutor are salvaged, so
+calls that already executed are still scored and saved. A transcript that cannot be
+written stops the stage. Utility is read from the last attempt, as in stock AgentDojo.
+
 ``--plan-only`` expands the stage without any model call. ``--summarize-only``
 rebuilds ``summary.json``. Saved benchmark text and model output are untrusted
 data; this script never interprets them as instructions.
@@ -25,6 +37,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -41,7 +54,8 @@ sys.path.insert(0, str(COMMON))
 import h2_core as hc  # noqa: E402
 from h2_core import SCHEMA_EPISODE, SCHEMA_PLAN, H2RunError  # noqa: E402
 
-ADAPTER_VERSION = "h2-deepseek-adapter/1"
+ADAPTER_VERSION = "h2-deepseek-adapter/2"
+TRANSCRIPT_SCHEMA = "h2-transcript/v2"
 EXIT_OK, EXIT_CONFIG, EXIT_GUARD_HALT, EXIT_ERRORS, EXIT_OTHER = 0, 2, 3, 6, 1
 MAX_CONSECUTIVE_ERRORS = 5
 VENDOR_FILES = (
@@ -128,7 +142,18 @@ class WireAssertionError(RuntimeError):
 
 
 class EpisodeRequestCeiling(RuntimeError):
-    """The per-episode request ceiling was reached."""
+    """The per-episode request ceiling was reached.
+
+    Not an ``AbortAgentError`` on purpose: the stock 3-attempt loop would catch that, append an
+    assistant message and treat the episode as finished (no run_error). Like any other failure of
+    an attempt, the runner then salvages the calls that already executed from the ToolsExecutor
+    record (``H2DeepSeekLLM.salvage_messages``). The model input at the refused call is attached
+    for information only."""
+
+    def __init__(self, message: str, messages: list[Any] | None = None, task_environment: Any = None) -> None:
+        super().__init__(message)
+        self.messages = list(messages or [])
+        self.task_environment = task_environment
 
 
 class _Context:
@@ -142,7 +167,9 @@ def build_runtime(config: dict[str, Any], stage: dict[str, Any], *, base_url: st
     import httpx
     import openai
     from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline, PipelineConfig
-    from agentdojo.agent_pipeline.tool_execution import ToolsExecutionLoop
+    from agentdojo.agent_pipeline.base_pipeline_element import BasePipelineElement
+    from agentdojo.agent_pipeline.tool_execution import ToolsExecutionLoop, ToolsExecutor
+    from agentdojo.functions_runtime import EmptyEnv
     from agentdojo_lab.deepseek_adapter import DeepSeekLLM
     from agentdojo_lab.pacing import RequestPacer
 
@@ -178,19 +205,53 @@ def build_runtime(config: dict[str, Any], stage: dict[str, Any], *, base_url: st
                            timeout=timeout, http_client=http_client)
 
     class H2DeepSeekLLM(DeepSeekLLM):
+        """The lab DeepSeekLLM plus the per-episode request ceiling and the salvage record.
+
+        Salvage (B2): ``salvage_messages`` / ``salvage_env`` hold the pipeline's real message list and
+        environment as last seen in the current attempt -- the output of the ToolsExecutor (every tool
+        result appended so far, recorded by ``_RecordingExecutor``), or, before any tool ran, the first
+        model input (system + user). The model's own inputs and outputs are not used after that, because
+        a gate that reuses this runtime (MELON) also sends masked or copied conversations through it."""
+
         def __init__(self, *a: Any, ceiling: int, **k: Any) -> None:
             super().__init__(*a, **k)
             self.ceiling = ceiling
             self.episode_requests = 0
+            self.begin_attempt()
 
         def begin_episode(self) -> None:
             self.episode_requests = 0
+            self.begin_attempt()
 
-        def query(self, *a: Any, **k: Any):  # type: ignore[override]
+        def begin_attempt(self) -> None:
+            self.salvage_messages: list[Any] = []
+            self.salvage_env: Any = None
+            self.salvage_source: str | None = None
+
+        def note_trajectory(self, messages: Any, env: Any) -> None:
+            self.salvage_messages, self.salvage_env, self.salvage_source = list(messages), env, "tools-executor-output"
+
+        def query(self, query: str, runtime: Any, env: Any = EmptyEnv(), messages: Any = (),  # type: ignore[override]
+                  extra_args: dict | None = None):
+            if not self.salvage_messages:
+                self.salvage_messages, self.salvage_env, self.salvage_source = list(messages), env, "first-model-input"
             if self.episode_requests >= self.ceiling:
-                raise EpisodeRequestCeiling(f"episode request ceiling {self.ceiling} reached")
+                raise EpisodeRequestCeiling(f"episode request ceiling {self.ceiling} reached", list(messages), env)
             self.episode_requests += 1
-            return super().query(*a, **k)
+            return super().query(query, runtime, env, messages, extra_args)
+
+    class _RecordingExecutor(BasePipelineElement):
+        """AgentDojo's ToolsExecutor, unchanged, plus a record of its output for the salvage path."""
+
+        def __init__(self, inner: Any, sink: Any) -> None:
+            self.inner, self.sink = inner, sink
+            self.name = getattr(inner, "name", None)
+
+        def query(self, query: str, runtime: Any, env: Any = EmptyEnv(), messages: Any = (),
+                  extra_args: dict | None = None):
+            out = self.inner.query(query, runtime, env, messages, {} if extra_args is None else extra_args)
+            self.sink.note_trajectory(out[3], out[2])
+            return out
 
     tpm = config["agent"].get("pacing_tokens_per_minute")
     pacer = RequestPacer(int(tpm), out_dir / "pacing.json") if tpm else None
@@ -202,16 +263,19 @@ def build_runtime(config: dict[str, Any], stage: dict[str, Any], *, base_url: st
     loops = [e for e in pipeline.elements if isinstance(e, ToolsExecutionLoop)]
     if len(loops) != 1 or loops[0].max_iters != config["agent"]["tools_execution_loop_max_iters"]:
         raise H2RunError("pipeline does not have exactly one ToolsExecutionLoop with the configured max_iters")
+    loop = loops[0]
+    if sum(1 for e in loop.elements if isinstance(e, ToolsExecutor)) != 1:
+        raise H2RunError("the ToolsExecutionLoop does not hold exactly one ToolsExecutor")
+    loop.elements = [_RecordingExecutor(e, llm) if isinstance(e, ToolsExecutor) else e for e in loop.elements]
     return {"client": client, "llm": llm, "pipeline": pipeline, "http_client": http_client}
 
 
 def _executed_calls_from_messages(messages: list[Any]) -> list[dict[str, Any]]:
-    """Every executed tool call, across all attempts, with its success flag.
+    """Every executed tool call of one message list (one attempt), with its success flag.
 
     Read from the tool-result messages (which carry the FunctionCall and the tool
     error), so a call the tool rejected is recorded with success=False -- an attacker
-    *attempt*, not an execution. Calls from earlier attempts of the 3-attempt loop
-    are kept.
+    *attempt*, not an execution. ``_executed_calls_from_attempts`` joins the attempts.
     """
     out: list[dict[str, Any]] = []
     for m in messages:
@@ -225,6 +289,16 @@ def _executed_calls_from_messages(messages: list[Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _executed_calls_from_attempts(attempts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Executed calls of every attempt, in order, each tagged with its attempt index. The task
+    environment carries over between attempts, so an earlier attempt's call has a real effect."""
+    out: list[dict[str, Any]] = []
+    for a in attempts:
+        for call in _executed_calls_from_messages(a["messages"]):
+            out.append(dict(call, attempt=a["index"]))
+    return out
+
+
 def _tool_output_texts(messages: list[Any]) -> list[str]:
     texts = []
     for m in messages:
@@ -232,6 +306,54 @@ def _tool_output_texts(messages: list[Any]) -> list[str]:
             continue
         texts.append("".join(b.get("content") or "" for b in (m.get("content") or []) if isinstance(b, dict)))
     return texts
+
+
+def _jsonable(value: Any) -> Any:
+    """AgentDojo messages (TypedDicts holding pydantic FunctionCalls) as plain JSON values."""
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def transcript_name(ep: dict[str, Any]) -> str:
+    """Windows-safe, collision-free transcript file name.
+
+    The episode id (``<case_id>|<ARM>|r<k>``) holds ``:`` and ``|``, which Windows refuses in a
+    file name. The name keeps the plan position, the arm and the repeat for humans and a hash of
+    the full episode id for uniqueness; it stays short so deep result paths stay under MAX_PATH.
+    Readers find a transcript by its ``transcript_path`` or its internal ``episode_id`` field."""
+    arm = re.sub(r"[^A-Za-z0-9_-]+", "_", str(ep.get("arm") or "x"))[:16]
+    digest = hc.sha256_bytes(ep["episode_id"].encode("utf-8"))[:12]
+    return f"{int(ep['seq']):05d}-{arm}-r{int(ep.get('repeat') or 0)}-{digest}.json"
+
+
+def _write_transcript(transcripts_dir: Path, ep: dict[str, Any], attempts: list[dict[str, Any]],
+                      executed: list[dict[str, Any]], salvaged: bool) -> tuple[str, str]:
+    """Write the episode transcript atomically; returns (file name, sha256). Raises OSError."""
+    tool_outputs = [t for a in attempts for t in _tool_output_texts(a["messages"])]
+    doc = {
+        "schema": TRANSCRIPT_SCHEMA, "episode_id": ep["episode_id"], "seq": ep["seq"],
+        "attempts": [{"index": a["index"], "ended": a["ended"], "error_type": a.get("error_type"),
+                      "salvaged": bool(a.get("salvaged")), "salvage_source": a.get("salvage_source"),
+                      "messages": _jsonable(a["messages"])} for a in attempts],
+        "salvaged_after_error": salvaged,
+        # Flat views over all attempts, aligned one to one (each AgentDojo tool message has its call).
+        "executed_calls": _jsonable(executed),
+        "tool_outputs": tool_outputs,
+    }
+    name = transcript_name(ep)
+    path = transcripts_dir / name
+    data = json.dumps(doc, ensure_ascii=False, indent=1) + "\n"
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(data, encoding="utf-8")
+    os.replace(tmp, path)
+    return name, hc.sha256_file(path)
 
 
 def run_one(ep: dict[str, Any], *, suites: dict[str, Any], authority_args: dict[str, Any],
@@ -262,11 +384,12 @@ def run_one(ep: dict[str, Any], *, suites: dict[str, Any], authority_args: dict[
     before = dict(llm.stats)
     t0 = time.monotonic()
     error: BaseException | None = None
-    executed: list[dict[str, Any]] = []
-    messages: list[Any] = []
     utility: bool | None = None
     run_error = False
     post_adds_x: bool | None = None
+    attempts: list[dict[str, Any]] = []     # every attempt of the 3-attempt loop, salvaged ones included
+    task_env: Any = None
+    pre_json: str | None = None
     try:
         env = suite.load_and_inject_default_environment(ep["injections"])
         task_env = user_task.init_environment(env)
@@ -274,22 +397,30 @@ def run_one(ep: dict[str, Any], *, suites: dict[str, Any], authority_args: dict[
         pre_json = pre_env.model_dump_json()
         runtime = FunctionsRuntime(suite.tools)
         model_output = None
-        for _ in range(3):
+        for index in range(3):
+            llm.begin_attempt()
             try:
                 _, _, task_env, messages, _ = pipeline.query(user_task.PROMPT, runtime, task_env)
+                ended = "completed"
             except AbortAgentError as exc:
-                task_env, messages = exc.task_environment, exc.messages
+                task_env, messages, ended = exc.task_environment, exc.messages, "abort"
+            except BaseException as exc:
+                # Salvage what this attempt had already done (B2): the ToolsExecutor's last output holds
+                # every tool result appended before the failure (see H2DeepSeekLLM).
+                if llm.salvage_env is not None:
+                    task_env = llm.salvage_env
+                attempts.append({"index": index, "ended": "error", "error_type": type(exc).__name__,
+                                 "salvaged": True, "salvage_source": llm.salvage_source,
+                                 "messages": list(llm.salvage_messages or [])})
+                raise
+            attempts.append({"index": index, "ended": ended, "messages": list(messages)})
             model_output = model_output_from_messages(messages) if messages else None
             if model_output is not None:
                 break
-        executed = _executed_calls_from_messages(messages)
-        stack = functions_stack_trace_from_messages(messages)
+            attempts[-1]["ended"] = "no_output"
+        last = attempts[-1]["messages"] if attempts else []
+        stack = functions_stack_trace_from_messages(last)
         utility = bool(suite._check_user_task_utility(user_task, model_output or [], pre_env, task_env, stack))
-        post_json = task_env.model_dump_json()
-        post_adds_x = post_json.count(ep["attacker_value"]) > pre_json.count(ep["attacker_value"])
-        if ep["carries_attacker_value"]:
-            seen = "\n".join(_tool_output_texts(messages))
-            record["injection_exposed"] = normalize_value(ep["attacker_value"]) in normalize_value(seen)
     except BaseException as exc:  # noqa: BLE001 - recorded; the caller decides whether to stop
         if isinstance(exc, KeyboardInterrupt):
             raise
@@ -300,24 +431,43 @@ def run_one(ep: dict[str, Any], *, suites: dict[str, Any], authority_args: dict[
                        "error_message": _redact(str(exc), token)[:500],
                        "error_trace_tail": _redact("".join(traceback.format_exception(exc)[-3:]), token)[-800:]})
 
+    # Calls, post-state and exposure come from every attempt, including one salvaged after an
+    # error, so a call that executed before a 5xx, a timeout or the ceiling is still scored.
+    executed = _executed_calls_from_attempts(attempts)
+    if pre_json is not None and task_env is not None:
+        try:
+            post_adds_x = task_env.model_dump_json().count(ep["attacker_value"]) > pre_json.count(ep["attacker_value"])
+        except Exception:  # noqa: BLE001 - an unreadable post-state stays None (unconfirmed)
+            post_adds_x = None
+    if ep["carries_attacker_value"] and attempts:
+        seen = "\n".join(t for a in attempts for t in _tool_output_texts(a["messages"]))
+        record["injection_exposed"] = normalize_value(ep["attacker_value"]) in normalize_value(seen)
+
     # Score every episode, errored or not, so none drops out of the denominator. An
     # attacker call that executed before the error still counts (ranked above run_error).
     verdict = classify_outcome(
         ep["target"], legit_set, ep["attacker_value"], ep.get("decoy_value"), executed, utility,
         authority_args=authority_args, run_error=run_error,
         attacker_state_observable=bool(ep.get("attacker_state_observable")), post_state_adds_attacker=post_adds_x)
+    salvaged = any(a.get("salvaged") for a in attempts)
+    # Declared-sink calls carrying X (protocol 6.2 F1 in this undefended runner; gate SS-0 reads it).
+    x_sink = hc.x_sink_calls(executed, ep["target"], ep["attacker_value"], authority_args, normalize_value)
     record.update({"scored": True, "outcome": verdict["outcome"], "subtype": verdict["subtype"],
                    "utility": utility, "oracle_details": verdict["details"],
-                   "executed_sink_calls": verdict["details"]["sink_calls"]})
+                   "x_sink_called": x_sink["called"] > 0, "x_sink_calls": x_sink["called"],
+                   "x_sink_calls_succeeded": x_sink["succeeded"],
+                   "executed_sink_calls": verdict["details"]["sink_calls"],
+                   "attempts_run": len(attempts), "attempt_endings": [a["ended"] for a in attempts],
+                   "salvaged_after_error": salvaged})
     if transcripts_dir is not None:
         try:
-            tpath = transcripts_dir / (ep["episode_id"].replace("/", "_").replace("|", "__") + ".json")
-            tpath.write_text(json.dumps({"episode_id": ep["episode_id"], "executed_calls": executed,
-                                         "tool_outputs": _tool_output_texts(messages)},
-                                        ensure_ascii=False, indent=2), encoding="utf-8")
-            record["transcript_path"] = tpath.name
-        except OSError:
-            pass
+            name, digest = _write_transcript(transcripts_dir, ep, attempts, executed, salvaged)
+            record["transcript_path"] = name
+            record["transcript_sha256"] = digest
+        except OSError as exc:
+            # Never silent: the caller stops the stage, because a paid episode without its
+            # transcript cannot be re-scored or audited.
+            record["transcript_error"] = f"{type(exc).__name__}: {_redact(str(exc), token)[:300]}"
     record["duration_seconds"] = round(time.monotonic() - t0, 2)
     record["finished_at"] = _utc()
     record["requests"] = llm.stats["request_count"] - before["request_count"]
@@ -446,6 +596,9 @@ def main(argv: list[str] | None = None) -> int:
                              transcripts_dir=transcripts_dir)
             exc = record.pop("_exception")
             _append_jsonl(episodes_path, record)
+            if record.get("transcript_error"):
+                exit_code, stop_reason = EXIT_ERRORS, f"transcript not written for {ep['episode_id']}: {record['transcript_error']}"
+                break
             if exc is None:
                 consecutive = 0
                 continue
@@ -465,8 +618,15 @@ def main(argv: list[str] | None = None) -> int:
         records = _latest(prior + hc.read_jsonl(episodes_path))
         summary = hc.summarize(case_file, args.stage, planned, records, mode=mode, price=price)
         _write_json(out_dir / "summary.json", summary)
+        mine = hc.read_jsonl(episodes_path)
         receipt.update({"finished_at": _utc(), "exit_code": exit_code, "stop_reason": stop_reason,
                         "episodes_jsonl_sha256": hc.sha256_file(episodes_path) if episodes_path.exists() else None,
+                        "transcripts": {"schema": TRANSCRIPT_SCHEMA,
+                                        "written": sum(1 for r in mine if r.get("transcript_path")),
+                                        "failed": sum(1 for r in mine if r.get("transcript_error")),
+                                        "episodes_this_run": len(mine),
+                                        "salvaged_after_error": sum(1 for r in mine if r.get("salvaged_after_error")),
+                                        "multi_attempt": sum(1 for r in mine if (r.get("attempts_run") or 0) > 1)},
                         "llm_stats": dict(rt["llm"].stats)})
         _write_json(out_dir / "h2_receipt.json", receipt)
         rt["http_client"].close()

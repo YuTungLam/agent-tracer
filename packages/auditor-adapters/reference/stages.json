@@ -1,0 +1,67 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "reference",
+  "about": "DeepSeek route stages for the only model-calling part of the offline reference auditors: the NeuroTaint causal judge (neurotaint_judge.py). The origin rule, the conservative join and NeuroTaint's explicit matching make zero model calls and are listed in offline_stages.json instead (no caps there). Launch with the lab venv: --artifact-root <agent-tracer>/packages/agentdojo-lab, and pass the planned probes with --set probes=<run_reference out-dir>/probes.jsonl. Probes exist only under the default probe policy (reference_config.json neurotaint.judge.probe_policy): the case's target sink, an exact prefix, and not the SS stratum; the judge refuses SS or inexact-prefix probes itself. All current H2 cases are SS, so neither stage is scheduled for H2 S2; these stages are for A1 traces. Run neurotaint_judge.py --plan-only first and size the cap from judge_plan.json (the guard pre-flight charges about bytes/2 prompt tokens plus max_tokens per request, so the token cap needs about 2x the plan's bytes/4 estimate). Every figure is UNVERIFIED until an NTJ-S1 ledger exists.",
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "model_aliases": [],
+    "max_tokens_default": 1024,
+    "max_tokens_ceiling": 1024,
+    "request_timeout_seconds": 120,
+    "paid_allowed": true,
+    "dry_run_allowed": false,
+    "dry_run_cap_requests": 4,
+    "fidelity": "own NeuroTaint reimplementation (lab M1-M7), causal judge backbone-substituted: deepseek-flash (thinking disabled, temperature 0, max_tokens 1024, json_object) instead of the lab's Groq gpt-oss-120b judge (temperature 0, max_completion_tokens 4096, reasoning low); frozen lab prompt counterfactual_audit.SYSTEM_PROMPT"
+  },
+  "stages": {
+    "NTJ-S1": {
+      "description": "Judge smoke on A1 traces only: at most 10 planned single-source probes (--max-probes 10). Checks that DeepSeek returns parseable english_punctuation_v1 judgments through the guard and calibrates the per-probe token cost for NTJ-S2. Not scheduled on SS traces (no probe is planned there).",
+      "argv": [
+        "{artifact_python}",
+        "{adapter_dir}/neurotaint_judge.py",
+        "--probes",
+        "{probes}",
+        "--out-dir",
+        "{out_dir}/reference",
+        "--lab-root",
+        "{artifact_root}",
+        "--max-probes",
+        "10"
+      ],
+      "cap_usd": 0.1,
+      "cap_tokens": 400000,
+      "cap_requests": 12,
+      "timeout_seconds": 1800,
+      "estimate": {
+        "requests": "at most 10",
+        "tokens": "about 50k-60k: a probe carries the recorded prefix twice (context A and B) plus the frozen prompt, about 5k prompt tokens for an AgentDojo sink prefix, plus at most 1024 completion tokens (UNVERIFIED; the lab Groq judge measured about 6.3k tokens per audited sink, PILOT-PROTOCOL-V1-DRAFT.md 9.1)",
+        "usd": "about 0.02-0.03 at the 2026-09-30 snapshot (UNVERIFIED; cache hits charged as misses)"
+      },
+      "compares_to": "none numerically; the lab judge contract (counterfactual_audit.request_body, judgment_formats english_punctuation_v1)"
+    },
+    "NTJ-S2": {
+      "description": "Judge pilot on A1 traces: every probe planned by run_reference.py under the default probe policy (target sink, exact prefix, not SS). Resumable with -- --resume-from <earlier reference dir>; only probes with an answer (HTTP 200 with content) are skipped, errored probes are sent again.",
+      "argv": [
+        "{artifact_python}",
+        "{adapter_dir}/neurotaint_judge.py",
+        "--probes",
+        "{probes}",
+        "--out-dir",
+        "{out_dir}/reference",
+        "--lab-root",
+        "{artifact_root}"
+      ],
+      "cap_usd": 2.5,
+      "cap_tokens": 6000000,
+      "cap_requests": 1500,
+      "timeout_seconds": 21600,
+      "estimate": {
+        "requests": "one per planned probe; unknown until A1 traces exist. On the 174 scripted ground-truth fixtures of the 29 runnable (SS) H2 cases the default policy plans 0 probes; the v1 all-sinks scope planned 42, of which 36 were on non-target functions and 6 on target-function calls (workspace user_task_8 add_calendar_event_participants) whose gate another authority element opened, so none could feed a target metric (conformance_gt.py and run_reference.py --probe-scope all --probe-ss, scratch, 2026-10-08)",
+        "tokens": "about 5.2k per probe (UNVERIFIED); the cap allows about 1,000 probes at the guard's bytes/2 pre-flight",
+        "usd": "about 0.002 per probe at the 2026-09-30 snapshot (UNVERIFIED)"
+      },
+      "compares_to": "none numerically; descriptive NeuroTaint attribution completeness and GSR on declared readings (protocol 6.3)"
+    }
+  }
+}

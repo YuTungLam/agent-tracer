@@ -1,0 +1,102 @@
+{
+  "schema": "reference-offline-stages/v1",
+  "artifact": "reference",
+  "about": "Zero-model-call stages of the offline reference auditors. They are NOT run through common/deepseek_route.py (no guard, no key, no caps: nothing here sends a request). Run each with the lab venv python and PYTHONUTF8=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 from packages/auditor-adapters/reference. Every --out-dir must be outside the code repository (the scripts refuse otherwise); results belong in the results checkout. The only model-calling step, the NeuroTaint causal judge, is in stages.json (NTJ-S1, NTJ-S2).",
+  "placeholders": {
+    "{lab_python}": "<agent-tracer>/packages/agentdojo-lab/.venv/Scripts/python.exe",
+    "{census_derived}": "<agent-tracer-results>/experiments/20261008-authority-origin-census-v2/derived",
+    "{cases}": "the generated H2 case file (scripts/generate_h2_cases.py output in the results checkout)",
+    "{h2_run}": "an H2 runner output dir (<run>/h2 with episodes.jsonl and transcripts/)",
+    "{minilm}": "<agent-tracer>/packages/agentdojo-lab/.model-cache/all-MiniLM-L6-v2-1110a243",
+    "{out}": "an output dir in the results checkout"
+  },
+  "stages": {
+    "REF-CONF": {
+      "description": "Conformance and integration on AgentDojo ground truth: O1 must deny exactly the 36/97 census v2 E0 tasks with non-prompt values; scripted ground-truth and X-substituted fixtures of every runnable H2 case through all three auditors (structural expectations checked).",
+      "argv": [
+        "{lab_python}",
+        "conformance_gt.py",
+        "--census-e0-tasks",
+        "{census_derived}/e0_tasks.csv",
+        "--case-file",
+        "{cases}",
+        "--semantic-model",
+        "{minilm}",
+        "--out-dir",
+        "{out}/reference-conformance"
+      ],
+      "model_requests": 0,
+      "status_2026_10_08": "run in scratch after the review fixes: O1 36/36 exact; tasks blocked (native) PACT_L2 36, PACT_L2_selector_ids 34, SIEVE_v3_L1 34, SIEVE_v2_L1 1, join 50; 0 structural violations over 174 fixtures; all 116 ground-truth fixtures score legitimate; 0 judge probes under the default policy; about 4 min with MiniLM on CPU"
+    },
+    "REF-H2-S2": {
+      "description": "Offline auditors over the H2 S2 traces (after S2 finishes): origin rule (5 readings: native plus the two carrier labellings, which are tagged trivial_on_SS and kept out of the summaries on SS cases), conservative join (native plus carrier_trusted), NeuroTaint 4 readings with MiniLM tiers 3-4. Refuses unless the run's episode_plan.json cases_digest and every episode's injection_payload_sha256 match the case file. Episodes with a malformed or inconsistent transcript are skipped and counted (summary.unloadable_episodes). Needs runner transcripts h2-transcript/v2 (attempts[].messages) for exact prefixes; older transcripts load prefix-inexact. Judge probes are planned only under the default probe policy (target sink, exact prefix, not SS), so on the SS H2 cases probes.jsonl is empty by design.",
+      "argv": [
+        "{lab_python}",
+        "run_reference.py",
+        "--case-file",
+        "{cases}",
+        "--h2-run",
+        "{h2_run}",
+        "--auditors",
+        "origin,join,neurotaint",
+        "--semantic-model",
+        "{minilm}",
+        "--out-dir",
+        "{out}/reference-h2-s2"
+      ],
+      "model_requests": 0
+    },
+    "REF-H2-S2T0": {
+      "description": "As REF-H2-S2 on the S2T0 (T=0 sensitivity) traces.",
+      "argv": [
+        "{lab_python}",
+        "run_reference.py",
+        "--case-file",
+        "{cases}",
+        "--h2-run",
+        "{h2_run}",
+        "--auditors",
+        "origin,join,neurotaint",
+        "--semantic-model",
+        "{minilm}",
+        "--out-dir",
+        "{out}/reference-h2-s2t0"
+      ],
+      "model_requests": 0
+    },
+    "REF-NT-FOLD": {
+      "description": "Fold NTJ judge outputs back into the NeuroTaint records (bound by probe_id and binding sha256; per probe the latest row with HTTP 200, a matching binding and a valid parse is used; invalid or missing judgments stay unknown). Same inputs as REF-H2-S2 plus every judge output dir. Only meaningful for A1 traces: SS traces plan no probes.",
+      "argv": [
+        "{lab_python}",
+        "run_reference.py",
+        "--case-file",
+        "{cases}",
+        "--h2-run",
+        "{h2_run}",
+        "--auditors",
+        "origin,join,neurotaint",
+        "--semantic-model",
+        "{minilm}",
+        "--judgments",
+        "<NTJ run dir>/reference",
+        "--out-dir",
+        "{out}/reference-h2-s2-judged"
+      ],
+      "model_requests": 0
+    },
+    "REF-AGENTDOJO-LOGS": {
+      "description": "Origin rule and join decisions over AgentDojo JSON logs without a case binding (e.g. the stock important_instructions harness S2 logs), under each reading's native table only. No typed outcome without a case binding; unbound gates are tallied separately in summary.unbound_gates.",
+      "argv": [
+        "{lab_python}",
+        "run_reference.py",
+        "--trace-dir",
+        "<agentdojo_logs dir>",
+        "--auditors",
+        "origin,join",
+        "--out-dir",
+        "{out}/reference-agentdojo-logs"
+      ],
+      "model_requests": 0
+    }
+  }
+}

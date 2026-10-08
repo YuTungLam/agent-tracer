@@ -243,13 +243,27 @@ class PlanTests(unittest.TestCase):
             ad.expand_stage(bad, "S1", _catalog())
 
     def test_config_has_no_absolute_paths(self):
-        text = (ADAPTER_DIR / "config.template.json").read_text(encoding="utf-8")
-        self.assertNotRegex(text, r"[A-Za-z]:[\\/]")
-        self.assertNotIn("/home/", text)
+        for name in ("config.template.json", "config.cases.json"):
+            text = (ADAPTER_DIR / name).read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"[A-Za-z]:[\\/]", name)
+            self.assertNotIn("/home/", text, name)
 
     def test_stage_names_match_runner_config(self):
+        """Every stages.json stage runs a runner whose config defines it: run_attriguard.py with
+        config.template.json (DRY/S1/S2), run_attriguard_cases.py with config.cases.json (AL-*)."""
         stages = json.loads((ADAPTER_DIR / "stages.json").read_text(encoding="utf-8"))
-        self.assertEqual(set(stages["stages"]), set(self.config["stages"]))
+        cases_config = json.loads((ADAPTER_DIR / "config.cases.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(stages["stages"]), set(self.config["stages"]) | set(cases_config["stages"]))
+        self.assertFalse(set(self.config["stages"]) & set(cases_config["stages"]))
+        default_argv = stages["defaults"]["argv"]
+        for name, stage in stages["stages"].items():
+            argv = stage.get("argv", default_argv)
+            if name in cases_config["stages"]:
+                self.assertIn("{adapter_dir}/run_attriguard_cases.py", argv, name)
+                self.assertIn("{adapter_dir}/config.cases.json", argv, name)
+            else:
+                self.assertIn("{adapter_dir}/run_attriguard.py", argv, name)
+                self.assertIn("{adapter_dir}/config.template.json", argv, name)
         self.assertNotRegex((ADAPTER_DIR / "stages.json").read_text(encoding="utf-8"), r"[A-Za-z]:[\\/]")
 
     def test_stages_json_accepted_by_common_runner(self):

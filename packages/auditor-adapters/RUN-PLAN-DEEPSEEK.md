@@ -289,6 +289,40 @@ Append the adapter's resume option after `--`. Pass `--cap-usd` and `--cap-token
 | paa | `-- --results-dir <previous run dir>/paa/results` | Skips finished units. The adapter's own budget continues from that directory's ledger. |
 | argus | `-- --resume-from <S1 run dir>/adapter --resume-from <previous S2 run dir>/adapter` | Repeatable. Re-runs missing and set-aside samples. |
 
+### 7.7 MELON gate on the H2 case files (AL-S1, AL-S2, AL-S2T0)
+
+These stages run the unmodified MELON artifact as an online gate on the common H2 case file, in the **agentdojo-lab venv** (`melon/README.md`, section "MELON gate on the H2 case files"). Each is matched by stimulus to an undefended h2 stage (same plan digest: the same case, arm and repeat index), not by realisation: the agent's sampled trajectory differs between the two runs, so episodes are not paired. The stimuli are the H2 arms, not `important_instructions`, so Gate H does not apply. They need `h2/run_h2.py` adapter `h2-deepseek-adapter/2`; the driver refuses anything else before any request.
+
+| Order | Run | Scope | `--cap-usd` / `--cap-tokens` / requests (stage ceiling) | Expected (UNVERIFIED) | Matched by stimulus to |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `melon/AL-S1` | h2 S1 selection: 2 dev email cases × 4 arms × 1, T=0.7 = 8 episodes | 0.25 / 600k / 400 | 170k–250k tokens, **$0.06–0.09** | `h2/S1` (plan digest `f0ecd7d2…`) |
+| 2 | `melon/AL-S2` | h2 S2 selection: 10 dev cases × 4 arms × 5, T=0.7 = 200 episodes | 5 / 14M / 10,000 | 4.6M–6.7M, **$1.6–2.4**, about 2–4 h | `h2/S2` (`6934cd0e…`) |
+| 3 | `melon/AL-S2T0` | h2 S2T0 selection: 10 dev cases × 4 arms × 1, T=0 (agent and masked run) = 40 episodes | 1 / 2.8M / 2,000 | 0.9M–1.4M, **$0.32–0.46** | `h2/S2T0` (`ac915cf5…`) |
+
+Plan digests are from `--plan-only` on the h2_cases_v1 file regenerated offline (cases digest `526916…`); they equal `h2/run_h2.py --plan-only` for S1, S2 and S2T0. Estimates scale the §9.1 per-slot means by the MELON multiplier 1.8–2.6× (`melon/stages.json` notes).
+
+**Gate AL (after AL-S1; go/no-go for AL-S2 and AL-S2T0).** Read the AL-S1 run's `melon_h2/melon_h2_receipt.json`, `melon_h2/episodes.jsonl`, `melon_h2/summary.json` and the guard receipt. Go only if all of these hold:
+1. `exit_code` is 0, and all 8 episodes have status `ok` (no `gate_error`, `code_drift` or `transcript_error`, no wire refusal);
+2. the guard ledger has usage: `guard.requests_forwarded` equals `summary.usage.requests`;
+3. every record has `code_check.ok`, `melon.gate_attempts_match_h2` and `melon.gate_oracle_cross_check.agrees` true, and the receipt has `code_unchanged_at_end` true;
+4. cost: with `r = AL-S1 guard.total_tokens / 250,000` (the AL-S1 high estimate), the projected high spend `r × $2.4` for AL-S2 is ≤ $5 and `r × $0.46` for AL-S2T0 is ≤ $1. Otherwise stop and re-plan (§7.3); never raise a cap above the stage ceiling.
+
+Run AL-S2T0 after AL-S2 (or alone, if only the T=0 row is approved). Do not edit any file under `packages/auditor-adapters/{melon,h2,common}` or the lab's `src/`/`vendor/` while a stage runs: the driver stops the stage on any change (exit 2).
+
+```powershell
+$CASES = "<h2_cases_v1.generated.json in the results checkout>"   # shell only
+# 1. AL-S1 (smoke; Gate AL reads it)
+python $ROUTE run-stage --artifact melon --stage AL-S1 --cap-usd 0.25 --cap-tokens 600000 --artifact-root $LAB --set "cases=$CASES" --set "melon_dir=$EXT/melon" --lab-env $LABENV --out-root "$RES/experiments/$DAY-deepseek-melon-h2-v1/raw" --grace-seconds 60
+# 2. AL-S2 (after Gate AL)
+python $ROUTE run-stage --artifact melon --stage AL-S2 --cap-usd 5 --cap-tokens 14000000 --artifact-root $LAB --set "cases=$CASES" --set "melon_dir=$EXT/melon" --lab-env $LABENV --out-root "$RES/experiments/$DAY-deepseek-melon-h2-v1/raw" --grace-seconds 60
+# 3. AL-S2T0 (after Gate AL)
+python $ROUTE run-stage --artifact melon --stage AL-S2T0 --cap-usd 1 --cap-tokens 2800000 --artifact-root $LAB --set "cases=$CASES" --set "melon_dir=$EXT/melon" --lab-env $LABENV --out-root "$RES/experiments/$DAY-deepseek-melon-h2-v1/raw" --grace-seconds 60
+```
+
+`--artifact-root` is the **lab** root here, unlike `melon/dry`, `s1` and `s2`. Without it the runner would start the MELON artifact venv (agentdojo 0.1.24), and `run_melon_h2.py` refuses with exit 2.
+
+**Resuming.** Append `-- --resume-from <previous run dir>/melon_h2`, with the caps reduced as in §7.6. The driver skips every started episode and refuses a different plan digest or a different code manifest digest (start a fresh out root instead of mixing code versions).
+
 ---
 
 ## 8. Optional S3 (not part of the budget; needs its own approval)
@@ -359,7 +393,7 @@ python -c "import hashlib,pathlib,sys; r=pathlib.Path(sys.argv[1]); out=r/'check
 | R4 | **Fatal halts stop the whole plan until diagnosed:** `upstream_http_401/402/403` (key, balance or permission), `usage_missing` (a response without usage, charged at the estimate), `consecutive_upstream_errors`. |
 | R5 | **Any HTTP 400 from DeepSeek on an artifact's first request** means a wire mismatch. Stop that artifact and fix it in code. It costs $0. |
 | R6 | **Caps are per invocation.** A resume gets `--cap-usd` = stage cap − Σ `guard.usd` and `--cap-tokens` = stage cap − Σ `guard.total_tokens` over that stage's earlier receipts. Never pass the full cap again. |
-| R7 | **Cumulative ceiling.** Before each paid command, tally the spend (§11). Stop if the total so far plus the next run's cap would exceed the approved budget: $0.981 for S0+S1, $29.98 before ARGUS S2, $55.98 overall, unless the user approves more. |
+| R7 | **Cumulative ceiling.** Before each paid command, tally the actual spend (§11). Stop if the total so far plus the next run's cap would exceed the approved budget: $0.981 for S0+S1, $29.98 before ARGUS S2, $55.98 overall (this covers batch 1, D01–D07: $5.46 spent + $4.33 + $10 + $26 = $45.79), unless the user approves more. **Batch 2** (`DEEPSEEK-FREEZE-V1.md` D08–D21) needs a new ceiling: **$109.44** guard USD proposed ($93.44 without D21) = actual spend so far + every remaining cap (`DEEPSEEK-FREEZE-V1.md` §4). It applies only once the user approves it (B2), with D21 as a separate approval. |
 | R8 | **Price check (P4).** If today's price is above the snapshot, scale `--cap-usd` down by the ratio. The token caps hold either way. |
 | R9 | **S1 decides S2.** An artifact whose S1 fails its criteria, or halts on its cap, does not start S2. Recalibrate as in §7.3; if the projection exceeds the cap, stop and re-plan. |
 | R10 | **Gate H decides the gated S2 runs** (§7.2). |
