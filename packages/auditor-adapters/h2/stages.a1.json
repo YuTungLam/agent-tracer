@@ -1,0 +1,47 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "h2",
+  "about": "After-data exploratory DeepSeek G1 dev screen for four native-GT-validated A1 stock cases. The child independently pins exact source commit and case-file bytes. S1 and S2 are separate fresh runs; eval cases are refused. This is one backbone, not a full G1 pass.",
+  "authorization_basis": "User 2026-10-10: 给完方案就直接跑 别等我确认. Operator disclosed the new G1-SMOKE $0.20 plus G1-FULL $1.00 hard guard cap ($1.20 total) before launch.",
+  "historical_boundary": "D27 ATTACK x_sink_called 2/30 failed Gate ADI-F; D26 ARGUS CLEAN and aggregate Gate S1-ADI failed. This stage starts a new after-data exploratory dev screen, not a continuation or relabeling of those outcomes.",
+  "price_verification": "DeepSeek official https://api-docs.deepseek.com/quick_start/pricing/ checked 2026-10-10: deepseek-flash V4.1-Flash, peak uncached input USD 0.30/M, peak output USD 1.20/M; guard snapshot assumes both peak and no cache savings. Prices can change; guard receipt is an estimate, not the invoice.",
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "model_aliases": [],
+    "max_tokens_default": 2048,
+    "max_tokens_ceiling": 2048,
+    "request_timeout_seconds": 120,
+    "paid_allowed": true,
+    "dry_run_allowed": false,
+    "fidelity": "native AgentDojo v1.2.2 user tasks, no-defense DeepSeek Flash, typed authority-sink outcome and stock user-task utility"
+  },
+  "stages": {
+    "G1-SMOKE": {
+      "description": "Four dev templates across workspace and Slack, four arms, one fresh repeat: 16 episodes. Complete receipts and recalibrated projection are required before G1-FULL.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_a1_screen.py", "--cases", "{cases}", "--expect-case-sha256", "{cases_sha256}", "--expect-code-commit", "{code_commit}", "--stage-config", "{adapter_dir}/stages.a1.json", "--stage", "{stage}", "--lab-root", "{artifact_root}", "--results-root", "{results_root}", "--out-dir", "{out_dir}/a1"],
+      "arms": ["CLEAN", "SS-instr", "A1-instr", "A1-fact"],
+      "repeats": 1,
+      "temperature": 0.7,
+      "episode_request_ceiling": 48,
+      "cap_usd": 0.20,
+      "cap_tokens": 400000,
+      "cap_requests": 320,
+      "timeout_seconds": 5400,
+      "estimate": "Prior native H2 6.9k mean tokens per episode suggests about 110k tokens for 16 episodes; ceiling allows 400k and USD 0.20. Estimate unverified for these cases."
+    },
+    "G1-FULL": {
+      "description": "Same four dev templates, four arms, five fresh repeats: 80 episodes. Launch only after a clean G1-SMOKE receipt and a projection within this stage's hard caps.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_a1_screen.py", "--cases", "{cases}", "--expect-case-sha256", "{cases_sha256}", "--expect-code-commit", "{code_commit}", "--stage-config", "{adapter_dir}/stages.a1.json", "--stage", "{stage}", "--lab-root", "{artifact_root}", "--results-root", "{results_root}", "--out-dir", "{out_dir}/a1", "--smoke-run", "{smoke_run}"],
+      "arms": ["CLEAN", "SS-instr", "A1-instr", "A1-fact"],
+      "repeats": 5,
+      "temperature": 0.7,
+      "episode_request_ceiling": 48,
+      "cap_usd": 1.00,
+      "cap_tokens": 2000000,
+      "cap_requests": 1600,
+      "timeout_seconds": 21600,
+      "estimate": "Prior native H2 6.9k mean tokens per episode suggests about 550k tokens for 80 episodes; ceiling allows 2M and USD 1.00. Recalibrate from this screen's S1 receipt before launch."
+    }
+  }
+}
