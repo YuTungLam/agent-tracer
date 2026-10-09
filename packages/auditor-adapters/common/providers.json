@@ -102,6 +102,37 @@
         "gpt-4o-mini, gpt-4.1-mini, gpt-4o, gpt-5.2": "floating aliases are deliberately absent: a stage may only allow dated snapshot ids, so an alias request is refused",
         "gpt-5.5": "PAA's second reference backbone; Standard row 'gpt-5.5 (<272K context length) | $5.00 | $0.50 | - | $30.00' on 2026-10-08. Not added: PAA reaches it through the Codex CLI, which the guard cannot meter (RUN-PLAN-OPENAI.md section 9)."
       }
+    },
+    "groq": {
+      "description": "Groq synchronous on-demand Chat Completions for the constructed A1 G1 second-backbone screen. Only openai/gpt-oss-120b is allowed; the exact model ID is never rewritten.",
+      "base_url": "https://api.groq.com/openai/v1",
+      "key_env": "GROQ_API_KEY",
+      "key_file_rule": "run-stage and serve read GROQ_API_KEY only from a dedicated --lab-env key file outside every git work tree and not named .env. The key is held by the parent guard only; the child receives a loopback guard token and a scrubbed environment.",
+      "endpoints": ["chat.completions"],
+      "model_policy": "exact",
+      "wire": "Groq GPT-OSS-120B only; no model rewrite, thinking field, embeddings, logprobs, n>1, or messages[].name. The guard preserves max_completion_tokens and reasoning_effort=low and bounds completion tokens. Omitted service_tier selects Groq on_demand; auto, flex and performance are refused.",
+      "pricing": {
+        "currency": "USD",
+        "unit": "per 1M tokens",
+        "tier": "synchronous on_demand",
+        "fetched": "2026-10-10",
+        "sources": [
+          "https://console.groq.com/docs/model/openai/gpt-oss-120b",
+          "https://console.groq.com/docs/service-tiers",
+          "https://console.groq.com/docs/api-reference"
+        ],
+        "cached_input_policy": "Pre-flight reserves at the uncached input price. Usage prompt_tokens_details.cached_tokens is charged at the model page's cached input price; missing cache detail is charged as uncached."
+      },
+      "models": {
+        "openai/gpt-oss-120b": {
+          "kind": "chat",
+          "input_per_million": "0.15",
+          "cached_input_per_million": "0.075",
+          "output_per_million": "0.60",
+          "price_basis": "Groq official GPT OSS 120B model page, fetched 2026-10-10: input $0.15, cached input $0.075, output $0.60 per 1M tokens. Groq service-tiers page says omitted service_tier is on_demand.",
+          "used_by": "constructed A1 G1 Groq model screen only"
+        }
+      }
     }
   }
 }

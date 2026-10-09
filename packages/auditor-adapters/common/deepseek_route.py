@@ -1,4 +1,4 @@
-"""Provider-aware route (DeepSeek, OpenAI), budget guard and stage runner shared by the auditor adapters.
+"""Provider-aware route (DeepSeek, OpenAI, Groq), budget guard and stage runner shared by the auditor adapters.
 
 Standard library only (Python >= 3.10), so the same file runs inside every
 third-party artifact's own venv.
@@ -6,7 +6,7 @@ third-party artifact's own venv.
 Providers.  A stage declares exactly one provider.  Stages under ``"stages"``
 are DeepSeek (as before); stages under ``"provider_stages"`` must name a
 non-DeepSeek ``"provider"``.  DeepSeek behaviour is unchanged from fe2e3e0 and keeps its
-constants in this file.  ``openai`` stages are described by
+constants in this file.  ``openai`` and ``groq`` stages are described by
 ``common/providers.json``: the guard never rewrites the model, accepts only the
 stage's exact model ids (each must carry a price in the table), adds no
 ``thinking`` field, clamps ``max_tokens``/``max_completion_tokens`` without
@@ -85,7 +85,10 @@ THINKING_DISABLED = {"type": "disabled"}
 
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 OPENAI_KEY_ENV = "OPENAI_API_KEY"
-PAID_PROVIDERS: tuple[str, ...] = ("deepseek", "openai")
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+GROQ_KEY_ENV = "GROQ_API_KEY"
+GROQ_MODEL = "openai/gpt-oss-120b"
+PAID_PROVIDERS: tuple[str, ...] = ("deepseek", "openai", "groq")
 # Fields an OpenAI stage may not send: DeepSeek-only, or billed outside the
 # Standard text-token prices in providers.json.
 OPENAI_REFUSED_FIELDS: tuple[str, ...] = ("thinking", "audio", "web_search_options", "prediction")
@@ -365,14 +368,23 @@ def load_providers(path: Path | None = None) -> dict[str, Any]:
     for name, entry in models.items():
         if not isinstance(entry, dict) or entry.get("kind") not in ("chat", "embedding"):
             raise RouteError(f"{path} model {name}: kind must be chat or embedding")
+    groq_entry = providers["groq"]
+    if (groq_entry.get("base_url"), groq_entry.get("key_env"), groq_entry.get("model_policy"),
+            groq_entry.get("endpoints")) != (GROQ_BASE_URL, GROQ_KEY_ENV, "exact", ["chat.completions"]):
+        raise RouteError(f"{path} groq entry must use the pinned chat endpoint, key and exact model policy")
+    groq_models = groq_entry.get("models")
+    if not isinstance(groq_models, dict) or set(groq_models) != {GROQ_MODEL}:
+        raise RouteError(f"{path} groq entry must allow exactly {GROQ_MODEL}")
+    if groq_models[GROQ_MODEL].get("kind") != "chat":
+        raise RouteError(f"{path} groq model must be chat")
     return table
 
 
 def provider_models(table: Mapping[str, Any], provider: str, model_ids: Iterable[str]) -> dict[str, ModelSpec]:
     """Priced ``ModelSpec`` for each id, or RouteError for an unknown or unpriced model."""
-    if provider != "openai":
+    if provider not in ("openai", "groq"):
         raise RouteError(f"provider {provider!r} has no exact-model table")
-    known = table["providers"]["openai"]["models"]
+    known = table["providers"][provider]["models"]
     specs: dict[str, ModelSpec] = {}
     for model in model_ids:
         entry = known.get(model)
@@ -435,7 +447,7 @@ class GuardConfig:
     embeddings_base_url: str | None = None
     embeddings_model: str | None = None
     price: Price = DEEPSEEK_PRICE
-    # Exact-model providers (openai): the allowlist, each id with its price.
+    # Exact-model providers: the allowlist, each id with its price.
     models: Mapping[str, ModelSpec] = field(default_factory=dict)
 
     def validate(self) -> None:
@@ -445,24 +457,27 @@ class GuardConfig:
             raise RouteError("cap_tokens must be positive")
         if self.cap_requests is not None and self.cap_requests <= 0:
             raise RouteError("cap_requests must be positive when set")
-        if self.upstream != "openai" and self.models:
-            raise RouteError("an exact model allowlist is only for the openai upstream")
-        if self.upstream == "openai":
-            if self.upstream_base_url != OPENAI_BASE_URL and not _is_loopback(self.upstream_base_url):
-                raise RouteError("openai upstream must be https://api.openai.com/v1 (or a loopback test double)")
+        if self.upstream not in ("openai", "groq") and self.models:
+            raise RouteError("an exact model allowlist is only for an exact-model upstream")
+        if self.upstream in ("openai", "groq"):
+            expected_url = OPENAI_BASE_URL if self.upstream == "openai" else GROQ_BASE_URL
+            if self.upstream_base_url != expected_url and not _is_loopback(self.upstream_base_url):
+                raise RouteError(f"{self.upstream} upstream must be {expected_url} (or a loopback test double)")
             if not self.api_key:
-                raise RouteError("openai upstream needs an API key")
+                raise RouteError(f"{self.upstream} upstream needs an API key")
             if not self.models:
-                raise RouteError("openai upstream needs an exact model allowlist")
+                raise RouteError(f"{self.upstream} upstream needs an exact model allowlist")
             if self.model_aliases:
-                raise RouteError("openai upstream never rewrites the model; model_aliases must be empty")
+                raise RouteError(f"{self.upstream} upstream never rewrites the model; model_aliases must be empty")
             for name, spec in self.models.items():
                 if not isinstance(spec, ModelSpec) or spec.model != name or spec.kind not in ("chat", "embedding"):
                     raise RouteError(f"invalid model spec for {name!r}")
             if self.request_model not in self.models:
-                raise RouteError("request_model must be one of the allowed openai models")
+                raise RouteError(f"request_model must be one of the allowed {self.upstream} models")
             if self.embeddings_base_url is not None or self.embeddings_model is not None:
-                raise RouteError("openai stages use the provider's own embeddings endpoint, not local_embeddings")
+                raise RouteError(f"{self.upstream} stages cannot use local_embeddings")
+            if self.upstream == "groq" and (set(self.models) != {GROQ_MODEL} or self.models[GROQ_MODEL].kind != "chat"):
+                raise RouteError(f"groq guard must allow exactly the {GROQ_MODEL} chat model")
         elif self.upstream == "deepseek":
             if self.upstream_base_url != DEEPSEEK_BASE_URL and not _is_loopback(self.upstream_base_url):
                 raise RouteError("deepseek upstream must be https://api.deepseek.com (or a loopback test double)")
@@ -625,7 +640,7 @@ class BudgetGuard:
                 "stop_child": self.stop_child,
                 "ledger": str(self.config.ledger_path),
             }
-            if self.config.upstream == "openai":
+            if self.config.upstream in ("openai", "groq"):
                 result.update({
                     "upstream_model": None,
                     "model_policy": "exact (never rewritten)",
@@ -635,11 +650,15 @@ class BudgetGuard:
                     "reasoning_tokens": self.reasoning_tokens,
                     "logprobs_responses": self.logprobs_responses,
                     "response_model_mismatches": self.response_model_mismatches,
-                    "requests_include_embeddings": True,
+                    "requests_include_embeddings": self.config.upstream == "openai",
                     "upstream_error_responses": self.upstream_error_responses,
-                    "upstream_error_billing": "charged as 0 USD (UNVERIFIED that OpenAI never bills an HTTP "
-                                              "4xx/5xx; reconcile with the usage dashboard, RUN-PLAN-OPENAI.md O13)",
+                    "upstream_error_billing": "charged as 0 USD (provider HTTP errors require dashboard reconciliation)",
                 })
+                if self.config.upstream == "openai":
+                    result["upstream_error_billing"] = (
+                        "charged as 0 USD (UNVERIFIED that OpenAI never bills an HTTP "
+                        "4xx/5xx; reconcile with the usage dashboard, RUN-PLAN-OPENAI.md O13)"
+                    )
             return result
 
     # -- accounting ----------------------------------------------------------
@@ -688,7 +707,7 @@ class BudgetGuard:
 
     def prepare_chat(self, raw: bytes) -> _Prepared:
         """Validate, normalise and reserve budget.  Raises _Refusal."""
-        if self.config.upstream == "openai":
+        if self.config.upstream in ("openai", "groq"):
             return self._prepare_openai_chat(raw)
         try:
             body = json.loads(raw)
@@ -825,11 +844,29 @@ class BudgetGuard:
         for name in OPENAI_REFUSED_FIELDS:
             if name in body:
                 raise _Refusal(400, "field_not_allowed", f"field {name!r} is not allowed on the openai route")
+        if cfg.upstream == "groq":
+            for name in ("logprobs", "top_logprobs", "logit_bias", "metadata", "prediction"):
+                if name in body:
+                    raise _Refusal(400, "field_not_allowed", f"field {name!r} is not allowed on the groq route")
+            if body.get("reasoning_effort") != "low":
+                raise _Refusal(400, "reasoning_effort_not_allowed", "groq G1 requires reasoning_effort='low'")
+            if body.get("temperature") != 0:
+                raise _Refusal(400, "temperature_not_allowed", "groq G1 requires temperature=0")
+            if body.get("tool_choice") != "auto":
+                raise _Refusal(400, "tool_choice_not_allowed", "groq G1 requires tool_choice='auto'")
+            if "max_tokens" in body:
+                raise _Refusal(400, "field_not_allowed", "groq G1 requires max_completion_tokens")
+            if any(isinstance(message, dict) and "name" in message for message in body["messages"]):
+                raise _Refusal(400, "field_not_allowed", "messages[].name is not allowed on the groq route")
         if body.get("modalities") not in (None, ["text"]):
             raise _Refusal(400, "field_not_allowed", "only text modalities are priced on the openai route")
-        if body.get("service_tier") not in (None, "default"):
+        allowed_tiers = (None, "on_demand") if cfg.upstream == "groq" else (None, "default")
+        if body.get("service_tier") not in allowed_tiers:
+            message = ("service_tier must be omitted or 'on_demand' (the priced Groq tier only)"
+                       if cfg.upstream == "groq" else
+                       "service_tier must be omitted or 'default' (prices are Standard tier only)")
             raise _Refusal(400, "service_tier_not_allowed",
-                           "service_tier must be omitted or 'default' (prices are Standard tier only)")
+                           message)
         for message in body["messages"]:
             content = message.get("content") if isinstance(message, dict) else None
             if isinstance(content, list):
@@ -861,6 +898,8 @@ class BudgetGuard:
             n = 1
         if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= 8:
             raise _Refusal(400, "invalid_n", "n must be an integer between 1 and 8")
+        if cfg.upstream == "groq" and n != 1:
+            raise _Refusal(400, "invalid_n", "groq supports only n=1")
         logprobs = body.get("logprobs")
         if logprobs is not None and not isinstance(logprobs, bool):
             raise _Refusal(400, "invalid_logprobs", "logprobs must be a boolean")
@@ -1010,11 +1049,16 @@ class BudgetGuard:
             model_matches = None if response_model is None else response_model == prep.requested_model
             if model_matches is False:
                 self.response_model_mismatches += 1
+                if cfg.upstream == "groq":
+                    self._halt("response_model_mismatch", fatal=True)
+            if cfg.upstream == "groq" and outcome == "ok" and response_model is None:
+                self._halt("response_model_missing", fatal=True)
             logprobs_returned = meta.get("logprobs_returned")
             if logprobs_returned:
                 self.logprobs_responses += 1
             tier = meta.get("service_tier")
-            if outcome == "ok" and tier not in (None, "default"):
+            allowed_tiers = (None, "default", "on_demand") if cfg.upstream == "groq" else (None, "default")
+            if outcome == "ok" and tier not in allowed_tiers:
                 # Prices in providers.json are Standard tier only.
                 self._halt("service_tier_" + re.sub(r"[^a-z0-9]+", "_", str(tier).lower())[:32], fatal=True)
             if self.total_tokens >= cfg.cap_tokens:
@@ -1033,6 +1077,7 @@ class BudgetGuard:
                 "upstream_model": prep.requested_model,
                 "response_model": response_model,
                 "response_model_matches": model_matches,
+                **({"system_fingerprint": meta.get("system_fingerprint")} if cfg.upstream == "groq" else {}),
                 "service_tier": None if tier is None else str(tier)[:32],
                 "request_sha256": hashlib.sha256(prep.body).hexdigest(),
                 "usage_source": source,
@@ -1074,7 +1119,7 @@ class BudgetGuard:
                upstream_id: str | None = None, finish_reason: str | None = None,
                response_meta: Mapping[str, Any] | None = None) -> None:
         cfg = self.config
-        if cfg.upstream == "openai":
+        if cfg.upstream in ("openai", "groq"):
             self._finish_exact(prep, outcome=outcome, http_status=http_status, usage=usage,
                                upstream_id=upstream_id, finish_reason=finish_reason, response_meta=response_meta)
             return
@@ -1227,6 +1272,7 @@ def _response_meta(parsed: Any) -> dict[str, Any]:
         "model": parsed.get("model"),
         "service_tier": parsed.get("service_tier"),
         "logprobs_returned": any(isinstance(c, dict) and c.get("logprobs") is not None for c in choices),
+        "system_fingerprint": parsed.get("system_fingerprint"),
     }
 
 
@@ -1289,7 +1335,7 @@ class _GuardHandler(BaseHTTPRequestHandler):
         if route == "/models":
             cfg = self.guard.config
             names = [cfg.request_model, *[a for a in cfg.model_aliases if a != cfg.request_model]]
-            if cfg.upstream == "openai":
+            if cfg.upstream in ("openai", "groq"):
                 names = [cfg.request_model, *[m for m in cfg.models if m != cfg.request_model]]
             data = [{"id": name, "object": "model", "owned_by": "auditor-guard"} for name in names]
             self._send(200, json.dumps({"object": "list", "data": data}).encode())
@@ -1355,7 +1401,7 @@ class _GuardHandler(BaseHTTPRequestHandler):
                     choices = parsed.get("choices") or []
                     if choices and isinstance(choices[0], dict):
                         finish_reason = choices[0].get("finish_reason")
-                    if guard.config.upstream == "openai":
+                    if guard.config.upstream in ("openai", "groq"):
                         meta = _response_meta(parsed)
                 except Exception:  # noqa: BLE001 - unparseable body counts as missing usage
                     pass
@@ -1369,7 +1415,8 @@ class _GuardHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         usage = upstream_id = finish_reason = None
-        meta: dict[str, Any] = {"model": None, "service_tier": None, "logprobs_returned": False}
+        meta: dict[str, Any] = {"model": None, "service_tier": None, "logprobs_returned": False,
+                                "system_fingerprint": None}
         client_open = True
         stream_error: str | None = None
         try:
@@ -1402,11 +1449,12 @@ class _GuardHandler(BaseHTTPRequestHandler):
                         meta["logprobs_returned"] = True
                 meta["model"] = meta["model"] or chunk.get("model")
                 meta["service_tier"] = chunk.get("service_tier") or meta["service_tier"]
+                meta["system_fingerprint"] = meta["system_fingerprint"] or chunk.get("system_fingerprint")
         except Exception as error:  # noqa: BLE001 - an upstream that drops or stalls mid-stream
             # Without this, finish() never ran: no ledger row, the reservation and the
             # in-flight slot stayed held, and the spend was under-reported.
             stream_error = type(error).__name__
-        exact = self.guard.config.upstream == "openai"
+        exact = self.guard.config.upstream in ("openai", "groq")
         if exact:
             meta["stream_error"] = stream_error
         if stream_error is not None and usage is None:
@@ -1462,6 +1510,11 @@ class _GuardHandler(BaseHTTPRequestHandler):
         cfg = guard.config
         if cfg.upstream == "openai":
             self._exact_embeddings(raw)
+            return
+        if cfg.upstream == "groq":
+            message = "Groq G1 guard allows chat completions only"
+            guard.refuse(400, "embeddings_unavailable", message, endpoint="embeddings")
+            self._send(400, _error_body("embeddings_unavailable", message))
             return
         if cfg.embeddings_base_url is None:
             message = "DeepSeek has no embeddings endpoint; declare a local embedder in the stage config"
@@ -1905,7 +1958,7 @@ def run_stage(req: StageRequest, base_env: Mapping[str, str] | None = None) -> d
     config_path = req.config_path or (ADAPTERS_DIR / req.artifact / "stages.json")
     stage, _config = load_stage(config_path, req.stage)
     provider = str(stage.get("provider", "deepseek"))
-    exact = provider != "deepseek"  # exact-model provider (openai): no rewrite, priced allowlist
+    exact = provider != "deepseek"  # exact-model providers: no rewrite, priced allowlist
     mode = "ollama-dry-run" if req.dry_run_ollama else provider
     if stage.get("blocked") and not req.plan_only:
         raise RouteError(f"stage {req.stage} is blocked: {stage['blocked']}")
@@ -2025,7 +2078,7 @@ def run_stage(req: StageRequest, base_env: Mapping[str, str] | None = None) -> d
             cap_tokens=req.cap_tokens,
             cap_requests=cap_requests,
             upstream=provider,
-            upstream_base_url=req.upstream_url_override or OPENAI_BASE_URL,
+            upstream_base_url=req.upstream_url_override or providers["providers"][provider]["base_url"],
             upstream_model="",
             request_model=str(stage["request_model"]),
             model_aliases=(),
@@ -2219,7 +2272,10 @@ def run_stage(req: StageRequest, base_env: Mapping[str, str] | None = None) -> d
         assert providers is not None
         receipt["child_env_added"] = sorted([*receipt["child_env_added"], "AUDITOR_PROVIDER", "AUDITOR_MODELS"])
         receipt["provider"] = provider
-        receipt["fidelity_label"] = f"published-backbone fidelity check ({provider}: {', '.join(gcfg.models)})"
+        receipt["fidelity_label"] = (
+            f"constructed A1 G1 exploratory model screen ({provider}: {GROQ_MODEL})"
+            if provider == "groq" else f"published-backbone fidelity check ({provider}: {', '.join(gcfg.models)})"
+        )
         receipt["price_snapshot"] = price_snapshot_for(providers, provider, gcfg.models)
         receipt["code"]["providers_json"] = str(PROVIDERS_PATH)
         receipt["code"]["providers_sha256"] = _sha256_file(PROVIDERS_PATH)
@@ -2245,7 +2301,7 @@ def _decimal(text: str) -> Decimal:
 
 
 def exact_serve_config(args: argparse.Namespace) -> GuardConfig:
-    """Guard config for ``serve --provider openai``, bounded by a tracked provider stage.
+    """Guard config for an exact-model provider, bounded by a tracked provider stage.
 
     The standalone guard honours the same stage rules as run-stage: a blocked stage is
     refused, the caps may not exceed the stage ceilings, the request cap and the output
@@ -2291,7 +2347,8 @@ def exact_serve_config(args: argparse.Namespace) -> GuardConfig:
     check_provider_key_file(args.lab_env, key_env)
     return GuardConfig(
         stage_id=args.stage_id, ledger_path=args.ledger, cap_usd=args.cap_usd, cap_tokens=args.cap_tokens,
-        cap_requests=cap_requests, upstream=provider, upstream_base_url=OPENAI_BASE_URL, upstream_model="",
+        cap_requests=cap_requests, upstream=provider,
+        upstream_base_url=table["providers"][provider]["base_url"], upstream_model="",
         request_model=request_model, models=specs,
         max_tokens_default=int(stage.get("max_tokens_default", 2048)),
         max_tokens_ceiling=int(stage.get("max_tokens_ceiling", 4096)),
@@ -2316,8 +2373,8 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--out-root", type=Path, default=os.environ.get("AUDITOR_OUT_ROOT"),
                      help="outside the code repo: results checkout or the artifact smoke dir (env AUDITOR_OUT_ROOT)")
     run.add_argument("--lab-env", type=Path, default=os.environ.get("AUDITOR_LAB_ENV"),
-                     help="lab .env holding the stage provider's key, DEEPSEEK_API_KEY or OPENAI_API_KEY "
-                          "(env AUDITOR_LAB_ENV); only that one line is read")
+                     help="provider key file (env AUDITOR_LAB_ENV); OpenAI and Groq require a dedicated "
+                          "file outside git, while DeepSeek uses the lab .env; only the chosen key line is read")
     run.add_argument("--artifact-root", type=Path, default=None,
                      help="artifact checkout (default $AUDITOR_ARTIFACTS_ROOT/<artifact>)")
     run.add_argument("--config", type=Path, default=None, help="stage config (default <adapters>/<artifact>/stages.json)")
@@ -2339,12 +2396,12 @@ def _build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--model-alias", action="append", default=[])
     serve.add_argument("--provider", choices=list(PAID_PROVIDERS), default="deepseek")
     serve.add_argument("--artifact", default=None,
-                       help="openai only (required): the artifact whose provider stage bounds this guard")
+                       help="exact-model providers (required): the artifact whose provider stage bounds this guard")
     serve.add_argument("--stage", default=None,
-                       help="openai only (required): a provider stage; its blocked flag, caps and models apply")
+                       help="exact-model providers (required): a provider stage; its blocked flag, caps and models apply")
     serve.add_argument("--config", type=Path, default=None, help="stage config (default <adapters>/<artifact>/stages.json)")
     serve.add_argument("--model", action="append", default=[],
-                       help="openai only: narrow the stage's models to these exact ids (repeat; first is the request model)")
+                       help="exact-model providers: narrow the stage's models to these exact ids")
     serve.add_argument("--dry-run-ollama", action="store_true")
     serve.add_argument("--ollama-url", default=OLLAMA_DEFAULT_URL)
     serve.add_argument("--ollama-model", default=OLLAMA_DEFAULT_MODEL)
