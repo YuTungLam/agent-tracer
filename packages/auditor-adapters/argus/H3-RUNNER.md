@@ -59,8 +59,9 @@ parity requirement. Warrant blocking L is an observed outcome, not a reason
 to drop that case. Stop and record the reason if any prerequisite fails.
 
 The shared `common/deepseek_route.py run-stage` wrapper takes the stage file
-with `--config`, the pinned ARGUS runtime with `--artifact-root`, and the
-private results checkout under `--out-root`; pass `h3_cases`, `h3_plan` and
+with `--config`, the pinned ARGUS runtime with `--artifact-root`, and
+`<results checkout>/experiments/<experiment-id>/raw` under `--out-root`;
+pass `h3_cases`, `h3_plan` and
 `results_root` through `--set`. H3-S2 runs all 40 sample-rows afresh; H3-S1
 is a separate diagnostic and its rows are not pooled into the full stage.
 A live run also requires a working ARGUS Python,
