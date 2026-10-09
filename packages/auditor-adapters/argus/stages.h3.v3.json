@@ -1,0 +1,136 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "argus",
+  "about": "Final guarded exploratory H3 v3 continuation. V1 stopped at the 192-request per-episode ceiling; v2 crossed it but stopped at the 300000-token per-episode ceiling after 218 Warrant requests. V2's 195 spans were labeled; the later ARGUS grounding search raised input tokens. Cases, prompts, methods, model, scorer and analysis stay fixed. V1 and v2 invalid rows are retained separately and never pooled. Use --set h3_cases=<path> --set h3_plan=<path> --set results_root=<confirmed checkout> and --artifact-root <pinned ARGUS checkout>.",
+  "authorization_basis": "User directed execution after a concrete plan without another confirmation. V1 actual $0.04668510 plus v2 actual $0.10174770 plus v3 S1 maximum $0.60 and conditional v3 S2 maximum $2.50 equals $3.24843280, below the previously presented $3.25 total. This is the final guarded rerun; if v3 S1 is incomplete, stop this ARGUS H3 route rather than raising caps again.",
+  "case_plan": {
+    "cases_file_sha256": "eb04f3d6bd5a7670929299de32ca2d6fd4f55e20dabce89bb0011908eab7a526",
+    "plan_file_sha256": "6dc56602d14e3a20f608765e6a1e9caf3386d7920d0ac0136e3b6eb7879ca210",
+    "generated_plan_digest": "bddf36302e251771fae14e09b487423c1ed83db1b5f7b58b181a91ab30e75e2a",
+    "cases_code_commit": "97d81b5d12dcae1622c162d63367d15dbaa55cab",
+    "h3_config_sha256": "692578251ecaadd454d5446959d091ff590200123430599f8334417e07a09f21",
+    "cases": "2 GT-validated dev pairs (workspace user_task_35 and slack user_task_2); banking user_task_2 is eval held out",
+    "full_plan": "2 pairs x 2 arms x 5 repeats = 20 episodes per row"
+  },
+  "pricing_reverification": {
+    "reverified_utc": "2026-10-09",
+    "official_url": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "requested_alias": "deepseek-flash",
+    "model_version": "DeepSeek-V4.1-Flash",
+    "peak_usd_per_million_input_uncached": "0.30",
+    "peak_usd_per_million_output": "1.20",
+    "basis": "Conservative peak, input cache hits charged as misses. The shared guard's historical 2026-09-30 snapshot has the same numeric rates; its receipt retains that historical id. Recheck alias and rates before any paid launch."
+  },
+  "cost_anchor": {
+    "source": "V1 and v2 H3-S1 results experiments 20261010-deepseek-h3-exploratory-v1 and -v2; after-data operational-bound correction",
+    "observed": "V1: 195 requests, 149206 tokens, $0.04668510. V2: 221 requests, 332118 tokens, $0.10174770. Both had one valid none row and one invalid workspace Warrant row; no H3 effect.",
+    "maximum_episode": "V2 workspace Warrant reached 218 requests and 304102 tokens before local refusal. All 195 context spans had been labeled. Remaining grounding and audit work was extrapolated at roughly 120000-140000 tokens for the first audit, plus possible agent retry.",
+    "caps_rule": "V3 S1 $0.60 and conditional S2 $2.50 keep all three experiments' actual-plus-maximum below $3.25. Episode limits are 640 requests and 1M tokens; stage guards are stricter in aggregate. S2 also requires 1.2 times 5 times S1 actual USD/tokens/requests to fit its caps. If v3 S1 fails, stop; no fourth cap increase."
+  },
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "max_tokens_default": 4096,
+    "max_tokens_ceiling": 4096,
+    "request_timeout_seconds": 180,
+    "paid_allowed": true,
+    "dry_run_allowed": true,
+    "dry_run_cap_requests": 10,
+    "fidelity": "backbone-substituted: DeepSeek V4.1 Flash for AgentDojo agent and ARGUS Warrant judges",
+    "env": {
+      "PYTHONUTF8": "1"
+    }
+  },
+  "stages": {
+    "H3-S1-V3": {
+      "description": "Final fresh H3 v3 smoke: both GT-validated dev pairs, TOOL_L and PROMPT_L, one repeat, none and Warrant rows. Four episodes per row; check prompt override, L proposal/audit, native utility parity, judge failures and cost before H3-S2-V3. V1/v2 rows are not reused.",
+      "argv": [
+        "{artifact_python}",
+        "{adapter_dir}/run_h3.py",
+        "--cases",
+        "{h3_cases}",
+        "--plan",
+        "{h3_plan}",
+        "--expect-cases-sha256",
+        "eb04f3d6bd5a7670929299de32ca2d6fd4f55e20dabce89bb0011908eab7a526",
+        "--expect-plan-sha256",
+        "6dc56602d14e3a20f608765e6a1e9caf3386d7920d0ac0136e3b6eb7879ca210",
+        "--results-root",
+        "{results_root}",
+        "--out",
+        "{out_dir}/adapter",
+        "--stage",
+        "{stage}",
+        "--rows",
+        "none",
+        "warrant",
+        "--repeats",
+        "1",
+        "--episode-request-ceiling",
+        "640",
+        "--episode-token-ceiling",
+        "1000000",
+        "--max-requests",
+        "1600",
+        "--max-total-tokens",
+        "2000000"
+      ],
+      "cap_usd": 0.6,
+      "cap_tokens": 2000000,
+      "cap_requests": 1600,
+      "timeout_seconds": 7200,
+      "estimate": {
+        "sample_rows": 8,
+        "episodes_per_row": 4,
+        "anchor": "V2 first Warrant row 218 requests / 304102 episode tokens before local refusal; extrapolated first audit 420k-440k, possible agent retry; H3 task transfer unverified",
+        "hard_ceiling": "$0.60, 2M tokens, 1600 requests"
+      },
+      "compares_to": "Same task and native utility across prompt arms; no attacker or H2 attack outcome."
+    },
+    "H3-S2-V3": {
+      "description": "Exploratory H3 v3 full dev pair panel: both cases x TOOL_L/PROMPT_L x five repeats x none/Warrant (40 fresh sample-rows). Prior S1 rows are diagnostic and are not pooled into this stage. Run only if all V3 S1 prerequisites and the 1.2x cost/workload projection pass.",
+      "argv": [
+        "{artifact_python}",
+        "{adapter_dir}/run_h3.py",
+        "--cases",
+        "{h3_cases}",
+        "--plan",
+        "{h3_plan}",
+        "--expect-cases-sha256",
+        "eb04f3d6bd5a7670929299de32ca2d6fd4f55e20dabce89bb0011908eab7a526",
+        "--expect-plan-sha256",
+        "6dc56602d14e3a20f608765e6a1e9caf3386d7920d0ac0136e3b6eb7879ca210",
+        "--results-root",
+        "{results_root}",
+        "--out",
+        "{out_dir}/adapter",
+        "--stage",
+        "{stage}",
+        "--rows",
+        "none",
+        "warrant",
+        "--repeats",
+        "5",
+        "--episode-request-ceiling",
+        "640",
+        "--episode-token-ceiling",
+        "1000000",
+        "--max-requests",
+        "10000",
+        "--max-total-tokens",
+        "12000000"
+      ],
+      "cap_usd": 2.5,
+      "cap_tokens": 12000000,
+      "cap_requests": 10000,
+      "timeout_seconds": 21600,
+      "estimate": {
+        "sample_rows": 40,
+        "episodes_per_row": 20,
+        "anchor": "Use completed V3 S1 totals to test the pre-stated 1.2 x 5 workload/cost projection before launch; do not extrapolate from invalid V1/V2 rows",
+        "hard_ceiling": "$2.50, 12M tokens, 10000 requests"
+      },
+      "compares_to": "Warrant false block on L from tool data versus L also stated in user prompt, conditional on complete planned rows and per-case undefended utility parity."
+    }
+  }
+}
