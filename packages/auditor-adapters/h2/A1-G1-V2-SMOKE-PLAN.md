@@ -31,7 +31,12 @@ automatic continuation.
    including an unchanged Alice question and identical Emma-owned background.
 2. Run `generate_a1_exploratory_v2_cases.py --check-only` with the confirmed
    results checkout. Freeze a clean source commit and write the generated case
-   file under an experiment-specific directory in that checkout.
+   file under an experiment-specific directory in that checkout. Set
+   `PYTHONUTF8=1` **before starting Python** for both generator invocations and
+   the child `--plan-only`; the guard sets the same mode for its child. On
+   Windows, default decoding otherwise changes a curly apostrophe in W34's
+   recipe source and its native source hashes. The generator now rejects that
+   incompatible mode before writing a case file.
 3. Record the case file's **byte** SHA-256 separately from `cases_sha256` in its
    JSON. Run the child `--plan-only`, then the guard's `run-stage --plan-only`.
    Both must report 16 episodes and the exact caps before any paid call.
@@ -44,3 +49,7 @@ code_commit=<clean commit> --set results_root=<confirmed results checkout>
 --lab-env <lab checkout>/.env --out-root <experiment raw directory>`.
 Run it once. Review the guard receipt, 16 episode rows, transcript hashes,
 source exposure and native outcome before making any new stage decision.
+
+The completed v2 smoke remains attributed to frozen experiment code commit
+`ed0582aca5f9f89b1ef815caa8e1891aa28e7715`. The later generator mode
+check and this note are reproduction safeguards, not a change to that run.

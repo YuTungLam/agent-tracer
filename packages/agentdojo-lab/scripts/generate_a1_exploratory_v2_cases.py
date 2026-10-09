@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -22,6 +23,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--check-only", action="store_true", help="validate without writing generated evidence")
     args = parser.parse_args(argv)
+    if os.environ.get("PYTHONUTF8") != "1" or sys.flags.utf8_mode != 1:
+        parser.error("v2 case generation requires PYTHONUTF8=1 at Python startup to match the guarded child")
     root = args.results_root.resolve(strict=True)
     if args.check_only and args.out:
         parser.error("--check-only cannot be combined with --out")
