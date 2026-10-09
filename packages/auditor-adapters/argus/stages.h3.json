@@ -1,0 +1,136 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "argus",
+  "about": "Exploratory after-data H3 benign stock-task pair stages. Source files and generated H3 case/plan bytes are pinned. The technical paid_allowed flag lets the user review and approve this exact configuration; it does not authorize an invocation. D23-D32 approval does not cover H3. Use --set h3_cases=<path> --set h3_plan=<path> --set results_root=<confirmed checkout> and --artifact-root <pinned ARGUS checkout>.",
+  "authorization_required": "No paid invocation until the user separately approves H3-S1 $0.75 and H3-S2 $2.50, total new maximum $3.25.",
+  "case_plan": {
+    "cases_file_sha256": "eb04f3d6bd5a7670929299de32ca2d6fd4f55e20dabce89bb0011908eab7a526",
+    "plan_file_sha256": "6dc56602d14e3a20f608765e6a1e9caf3386d7920d0ac0136e3b6eb7879ca210",
+    "generated_plan_digest": "bddf36302e251771fae14e09b487423c1ed83db1b5f7b58b181a91ab30e75e2a",
+    "cases_code_commit": "97d81b5d12dcae1622c162d63367d15dbaa55cab",
+    "h3_config_sha256": "692578251ecaadd454d5446959d091ff590200123430599f8334417e07a09f21",
+    "cases": "2 GT-validated dev pairs (workspace user_task_35 and slack user_task_2); banking user_task_2 is eval held out",
+    "full_plan": "2 pairs x 2 arms x 5 repeats = 20 episodes per row"
+  },
+  "pricing_reverification": {
+    "reverified_utc": "2026-10-09",
+    "official_url": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "requested_alias": "deepseek-flash",
+    "model_version": "DeepSeek-V4.1-Flash",
+    "peak_usd_per_million_input_uncached": "0.30",
+    "peak_usd_per_million_output": "1.20",
+    "basis": "Conservative peak, input cache hits charged as misses. The shared guard's historical 2026-09-30 snapshot has the same numeric rates; its receipt retains that historical id. Recheck alias and rates before any paid launch."
+  },
+  "cost_anchor": {
+    "source": "D26 ARGUS ADI-S1, results experiment 20261009-deepseek-argus-adi-v1; exploratory workload transfer, not an H3 observation",
+    "observed": "12 sample-rows (6 none, 6 warrant): 471428 tokens, 514 requests, $0.159 guard",
+    "maximum_episode": "warrant 124541 tokens / 123 requests; none 19042 tokens / 8 requests",
+    "caps_rule": "H3-S1 1.5M token cap is 3.18x D26's entire 12-row observed 471428 tokens, though H3-S1 has 8 rows. H3-S2 6M token cap is 2.09x a 40-row upper envelope formed as 20 paired stimuli x (D26 maximum Warrant 124541 + maximum none 19042) = 2871660 tokens. Cross-task transfer is unverified. Both caps are new proposals."
+  },
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "max_tokens_default": 4096,
+    "max_tokens_ceiling": 4096,
+    "request_timeout_seconds": 180,
+    "paid_allowed": true,
+    "dry_run_allowed": true,
+    "dry_run_cap_requests": 10,
+    "fidelity": "backbone-substituted: DeepSeek V4.1 Flash for AgentDojo agent and ARGUS Warrant judges",
+    "env": {
+      "PYTHONUTF8": "1"
+    }
+  },
+  "stages": {
+    "H3-S1": {
+      "description": "No-attack H3 plumbing smoke: both GT-validated dev pairs, TOOL_L and PROMPT_L, one repeat, none and Warrant rows. Four episodes per row; check prompt override, L proposal/audit, native utility parity, judge failures and cost before H3-S2. New user approval required.",
+      "argv": [
+        "{artifact_python}",
+        "{adapter_dir}/run_h3.py",
+        "--cases",
+        "{h3_cases}",
+        "--plan",
+        "{h3_plan}",
+        "--expect-cases-sha256",
+        "eb04f3d6bd5a7670929299de32ca2d6fd4f55e20dabce89bb0011908eab7a526",
+        "--expect-plan-sha256",
+        "6dc56602d14e3a20f608765e6a1e9caf3386d7920d0ac0136e3b6eb7879ca210",
+        "--results-root",
+        "{results_root}",
+        "--out",
+        "{out_dir}/adapter",
+        "--stage",
+        "{stage}",
+        "--rows",
+        "none",
+        "warrant",
+        "--repeats",
+        "1",
+        "--episode-request-ceiling",
+        "192",
+        "--episode-token-ceiling",
+        "300000",
+        "--max-requests",
+        "1200",
+        "--max-total-tokens",
+        "1500000"
+      ],
+      "cap_usd": 0.75,
+      "cap_tokens": 1500000,
+      "cap_requests": 1200,
+      "timeout_seconds": 7200,
+      "estimate": {
+        "sample_rows": 8,
+        "episodes_per_row": 4,
+        "anchor": "D26 12 rows 471428 tokens / 514 requests / $0.159; H3 task transfer unverified",
+        "hard_ceiling": "$0.75, 1.5M tokens, 1200 requests"
+      },
+      "compares_to": "Same task and native utility across prompt arms; no attacker or H2 attack outcome."
+    },
+    "H3-S2": {
+      "description": "Exploratory H3 full dev pair panel: both cases x TOOL_L/PROMPT_L x five repeats x none/Warrant (40 fresh sample-rows). H3-S1 is diagnostic and its rows are not pooled into this stage. New user approval required.",
+      "argv": [
+        "{artifact_python}",
+        "{adapter_dir}/run_h3.py",
+        "--cases",
+        "{h3_cases}",
+        "--plan",
+        "{h3_plan}",
+        "--expect-cases-sha256",
+        "eb04f3d6bd5a7670929299de32ca2d6fd4f55e20dabce89bb0011908eab7a526",
+        "--expect-plan-sha256",
+        "6dc56602d14e3a20f608765e6a1e9caf3386d7920d0ac0136e3b6eb7879ca210",
+        "--results-root",
+        "{results_root}",
+        "--out",
+        "{out_dir}/adapter",
+        "--stage",
+        "{stage}",
+        "--rows",
+        "none",
+        "warrant",
+        "--repeats",
+        "5",
+        "--episode-request-ceiling",
+        "192",
+        "--episode-token-ceiling",
+        "300000",
+        "--max-requests",
+        "6000",
+        "--max-total-tokens",
+        "6000000"
+      ],
+      "cap_usd": 2.5,
+      "cap_tokens": 6000000,
+      "cap_requests": 6000,
+      "timeout_seconds": 21600,
+      "estimate": {
+        "sample_rows": 40,
+        "episodes_per_row": 20,
+        "anchor": "D26 max Warrant episode 124541 tokens/123 requests, max none episode 19042/8; H3 transfer unverified",
+        "hard_ceiling": "$2.50, 6M tokens, 6000 requests"
+      },
+      "compares_to": "Warrant false block on L from tool data versus L also stated in user prompt, conditional on complete planned rows and per-case undefended utility parity."
+    }
+  }
+}
