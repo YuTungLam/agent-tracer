@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -26,8 +27,8 @@ COMMON = HERE.parent / "common"
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(COMMON))
 
-import h2_core as hc
-import run_h2 as h2
+import h2_core as hc  # noqa: E402
+import run_h2 as h2  # noqa: E402
 
 ARMS = ("CLEAN", "SS-instr", "A1-instr", "A1-fact")
 SCHEMA = "a1-g1-screen/v1"
@@ -68,9 +69,19 @@ def _git_state(repo: Path) -> dict[str, Any]:
         return subprocess.run(["git", "-C", str(repo), *args], check=True,
                               capture_output=True, text=True, timeout=60).stdout.strip()
 
+    status = git("status", "--porcelain", "--untracked-files=all").splitlines()
     return {"root": git("rev-parse", "--show-toplevel"),
-            "commit": git("rev-parse", "HEAD"),
-            "dirty": bool(git("status", "--porcelain"))}
+            "commit": git("rev-parse", "HEAD"), "dirty": _source_status_is_dirty(status)}
+
+
+def _source_status_is_dirty(status: list[str]) -> bool:
+    # run-stage owns one short-lived lock inside the code tree while the child
+    # executes. The guard itself excludes precisely these locks from its source
+    # snapshot; all other tracked or untracked changes still fail closed here.
+    return any(not re.fullmatch(
+        r"\?\? packages/auditor-adapters/common/\.run-stage-[0-9]+-[0-9a-f]+\.lock",
+        line,
+    ) for line in status)
 
 
 def validate_cases(case_file: dict[str, Any], *, stage: str) -> list[dict[str, Any]]:

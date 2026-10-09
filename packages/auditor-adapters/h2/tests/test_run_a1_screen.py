@@ -15,6 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import run_a1_screen as a1
 
 
+def test_child_ignores_only_its_route_lock() -> None:
+    lock = "?? packages/auditor-adapters/common/.run-stage-27780-270d9df9.lock"
+    assert a1._source_status_is_dirty([lock]) is False
+    assert a1._source_status_is_dirty([lock, " M packages/auditor-adapters/h2/run_a1_screen.py"])
+    assert a1._source_status_is_dirty(["?? packages/auditor-adapters/common/other.lock"])
+
+
 def _case(case_id: str, suite: str, split: str = "dev") -> dict:
     arms = {arm: {"arm_text": "clean" if arm == "CLEAN" else "attack",
                   "injections": {} if arm == "CLEAN" else {"vector": "attack"}}
@@ -79,6 +86,7 @@ def test_bad_native_conformance_and_vector_refused() -> None:
 def test_real_generated_bundle_plan_only() -> None:
     """Native GT input, including an empty CLEAN web vector and constructed PC5."""
     from agentdojo.task_suite.load_suites import get_suite
+
     from agentdojo_lab import a1_pc5_slack_s13, a1_stock_cases
 
     lab = Path(__file__).resolve().parents[3] / "agentdojo-lab"
