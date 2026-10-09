@@ -1,0 +1,75 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "argus",
+  "about": "Post hoc single-case Slack H3 diagnostic after the workspace-inclusive v1-v3 stages stopped on ARGUS's large-context Warrant workload. Select the pre-existing GT-validated dev Slack pair by fixed case ID from the unchanged H3 cases/plan. This is not the original multi-case H3 hypothesis test; no v1-v3 row is pooled.",
+  "authorization_basis": "The user directed execution after a concrete plan without another confirmation. V1-v3 actual guard cost is $0.46521870. Slack S1 and conditional S2 maxima are $0.20 and $0.50, so cumulative actual-plus-maximum is $1.16521870, below the previously presented $3.25 total.",
+  "case_plan": {
+    "case_id": "h3:slack:user_task_2:invite_user_to_slack.user_email",
+    "cases_file_sha256": "eb04f3d6bd5a7670929299de32ca2d6fd4f55e20dabce89bb0011908eab7a526",
+    "plan_file_sha256": "6dc56602d14e3a20f608765e6a1e9caf3386d7920d0ac0136e3b6eb7879ca210",
+    "cases_code_commit": "97d81b5d12dcae1622c162d63367d15dbaa55cab",
+    "selection_reason": "The existing Slack page response is 63 characters and one ARGUS context span in deterministic GT; this case was registered dev before v1-v3 paid outcomes. Selection is post hoc by known workload, so results are diagnostic."
+  },
+  "pricing_reverification": {
+    "reverified_utc": "2026-10-09",
+    "official_url": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "requested_alias": "deepseek-flash",
+    "model_version": "DeepSeek-V4.1-Flash",
+    "peak_usd_per_million_input_uncached": "0.30",
+    "peak_usd_per_million_output": "1.20"
+  },
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "max_tokens_default": 4096,
+    "max_tokens_ceiling": 4096,
+    "request_timeout_seconds": 180,
+    "paid_allowed": true,
+    "dry_run_allowed": true,
+    "dry_run_cap_requests": 10,
+    "fidelity": "backbone-substituted: DeepSeek V4.1 Flash for AgentDojo agent and ARGUS Warrant judges",
+    "env": {"PYTHONUTF8": "1"}
+  },
+  "stages": {
+    "H3-SLACK-S1": {
+      "description": "Four fresh Slack-only diagnostic rows: TOOL_L/PROMPT_L x none/Warrant x one repeat. Gate the full panel on completion, native utility, L opportunity, identity and cost projection.",
+      "argv": [
+        "{artifact_python}", "{adapter_dir}/run_h3.py",
+        "--cases", "{h3_cases}", "--plan", "{h3_plan}",
+        "--expect-cases-sha256", "eb04f3d6bd5a7670929299de32ca2d6fd4f55e20dabce89bb0011908eab7a526",
+        "--expect-plan-sha256", "6dc56602d14e3a20f608765e6a1e9caf3386d7920d0ac0136e3b6eb7879ca210",
+        "--results-root", "{results_root}", "--out", "{out_dir}/adapter",
+        "--stage", "{stage}", "--case-id", "h3:slack:user_task_2:invite_user_to_slack.user_email",
+        "--rows", "none", "warrant", "--repeats", "1",
+        "--episode-request-ceiling", "384", "--episode-token-ceiling", "500000",
+        "--max-requests", "500", "--max-total-tokens", "600000"
+      ],
+      "cap_usd": 0.2,
+      "cap_tokens": 600000,
+      "cap_requests": 500,
+      "timeout_seconds": 7200,
+      "estimate": {"sample_rows": 4, "episodes_per_row": 2, "anchor": "Slack deterministic GT has 39 tool-description spans and one short webpage-result span; model behavior unverified", "hard_ceiling": "$0.20, 600k tokens, 500 requests"},
+      "compares_to": "Same Slack task, native utility, L and sink; only trusted prompt placement differs."
+    },
+    "H3-SLACK-S2": {
+      "description": "Twenty fresh Slack-only rows: TOOL_L/PROMPT_L x none/Warrant x five repeats. S1 rows are diagnostic and not pooled. Run only if S1 gates and 1.2 x 5 cost/workload projection pass.",
+      "argv": [
+        "{artifact_python}", "{adapter_dir}/run_h3.py",
+        "--cases", "{h3_cases}", "--plan", "{h3_plan}",
+        "--expect-cases-sha256", "eb04f3d6bd5a7670929299de32ca2d6fd4f55e20dabce89bb0011908eab7a526",
+        "--expect-plan-sha256", "6dc56602d14e3a20f608765e6a1e9caf3386d7920d0ac0136e3b6eb7879ca210",
+        "--results-root", "{results_root}", "--out", "{out_dir}/adapter",
+        "--stage", "{stage}", "--case-id", "h3:slack:user_task_2:invite_user_to_slack.user_email",
+        "--rows", "none", "warrant", "--repeats", "5",
+        "--episode-request-ceiling", "384", "--episode-token-ceiling", "500000",
+        "--max-requests", "2500", "--max-total-tokens", "3000000"
+      ],
+      "cap_usd": 0.5,
+      "cap_tokens": 3000000,
+      "cap_requests": 2500,
+      "timeout_seconds": 21600,
+      "estimate": {"sample_rows": 20, "episodes_per_row": 10, "anchor": "Launch only if 1.2 times five times S1 actual USD/tokens/requests fit these caps", "hard_ceiling": "$0.50, 3M tokens, 2500 requests"},
+      "compares_to": "Single-case post hoc descriptive Warrant false-block difference; never pooled with workspace or confirmatory H3."
+    }
+  }
+}

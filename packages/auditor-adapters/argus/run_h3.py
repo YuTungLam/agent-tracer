@@ -44,7 +44,8 @@ def _git(repo: Path, *args: str) -> str:
 
 
 def load_h3(cases_path: Path, plan_path: Path, limit_pairs: int | None = None,
-            repeats: int | None = None) -> tuple[dict, dict, list[dict]]:
+            repeats: int | None = None, case_ids: Sequence[str] | None = None
+            ) -> tuple[dict, dict, list[dict]]:
     """Rebuild the plan and reject changed prompts, eval cases and injections."""
     cases = json.loads(cases_path.read_text(encoding="utf-8"))
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
@@ -71,9 +72,20 @@ def load_h3(cases_path: Path, plan_path: Path, limit_pairs: int | None = None,
             raise H3RunError("prompt override hash mismatch")
     if limit_pairs is not None and limit_pairs < 1:
         raise H3RunError("--limit-pairs must be positive")
+    if case_ids is not None and limit_pairs is not None:
+        raise H3RunError("--case-id conflicts with --limit-pairs")
     if repeats is not None and (repeats < 1 or repeats > plan["repeats"]):
         raise H3RunError("--repeats must be between 1 and the frozen plan repeat count")
-    ids = list(dict.fromkeys(e["case_id"] for e in plan["episodes"]))[:limit_pairs]
+    eligible_ids = list(dict.fromkeys(e["case_id"] for e in plan["episodes"]))
+    if case_ids is not None:
+        if not case_ids or len(set(case_ids)) != len(case_ids):
+            raise H3RunError("--case-id requires distinct, nonempty IDs")
+        unknown = set(case_ids) - set(eligible_ids)
+        if unknown:
+            raise H3RunError(f"--case-id is unknown or held-out eval: {', '.join(sorted(unknown))}")
+        ids = list(case_ids)
+    else:
+        ids = eligible_ids[:limit_pairs]
     selected = [e for e in plan["episodes"] if e["case_id"] in ids
                 and (repeats is None or e["repeat"] < repeats)]
     if not selected:
@@ -259,7 +271,10 @@ def _parser() -> argparse.ArgumentParser:
                    help="pin the generated case file bytes; every supplied hash must match")
     p.add_argument("--expect-plan-sha256", action="append", default=[],
                    help="pin the generated plan file bytes; every supplied hash must match")
-    p.add_argument("--limit-pairs", type=int)
+    selector = p.add_mutually_exclusive_group()
+    selector.add_argument("--limit-pairs", type=int)
+    selector.add_argument("--case-id", action="append", dest="case_ids",
+                          help="select an exact validated dev case ID from the frozen plan; repeat to select more")
     p.add_argument("--repeats", type=int, help="prefix repeats of each frozen pair (smoke: 1, full: 5)")
     p.add_argument("--episode-request-ceiling", type=int, default=96)
     p.add_argument("--episode-token-ceiling", type=int, default=500000)
@@ -279,7 +294,8 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.episode_request_ceiling < 1 or args.episode_token_ceiling < 1 or len(set(args.rows)) != len(args.rows):
         raise SystemExit("invalid H3 rows or episode ceiling")
-    cases, plan, selected = load_h3(args.cases, args.plan, args.limit_pairs, args.repeats)
+    cases, plan, selected = load_h3(args.cases, args.plan, args.limit_pairs, args.repeats,
+                                    args.case_ids)
     for label, path, hashes in (("cases", args.cases, args.expect_cases_sha256),
                                 ("plan", args.plan, args.expect_plan_sha256)):
         actual = _sha(path.read_bytes())

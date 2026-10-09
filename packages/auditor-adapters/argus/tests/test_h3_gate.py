@@ -38,6 +38,49 @@ def test_plan_is_dev_only_and_rejects_tampering(tmp_path):
         load_h3(cases_path, plan_path)
 
 
+def test_case_id_selects_only_named_dev_pair_after_frozen_plan_validation(tmp_path):
+    cases_path, plan_path, cases = _files(tmp_path)
+    _, plan, all_episodes = load_h3(cases_path, plan_path)
+    dev_ids = {c["case_id"] for c in cases["cases"] if c["split"] == "dev"}
+    eval_id = next(c["case_id"] for c in cases["cases"] if c["split"] == "eval")
+    slack_id = next(c["case_id"] for c in cases["cases"] if c["suite"] == "slack")
+    assert slack_id in dev_ids and eval_id not in dev_ids
+    _, selected_plan, selected = load_h3(cases_path, plan_path, case_ids=[slack_id])
+    assert selected_plan == plan
+    assert {e["case_id"] for e in selected} == {slack_id}
+    assert {e["arm"] for e in selected} == set(h3.ARMS)
+    assert [e["episode_id"] for e in selected] == [e["episode_id"] for e in all_episodes
+                                                      if e["case_id"] == slack_id]
+    full_run = run_plan(cases_path, plan_path, all_episodes, ("none", "warrant"), 192, 300000)
+    selected_run = run_plan(cases_path, plan_path, selected, ("none", "warrant"), 192, 300000)
+    assert selected_run["cases_sha256"] == full_run["cases_sha256"]
+    assert selected_run["h3_plan_sha256"] == full_run["h3_plan_sha256"]
+    assert selected_run["run_plan_sha256"] != full_run["run_plan_sha256"]
+    for bad_id in (eval_id, "h3:unknown"):
+        with pytest.raises(H3RunError, match="unknown or held-out eval"):
+            load_h3(cases_path, plan_path, case_ids=[bad_id])
+    with pytest.raises(H3RunError, match="conflicts"):
+        load_h3(cases_path, plan_path, limit_pairs=1, case_ids=[slack_id])
+    with pytest.raises(H3RunError, match="distinct"):
+        load_h3(cases_path, plan_path, case_ids=[slack_id, slack_id])
+    changed = json.loads(plan_path.read_text(encoding="utf-8"))
+    changed["episodes"][0]["prompt_override"] += " changed"
+    plan_path.write_text(json.dumps(changed), encoding="utf-8")
+    with pytest.raises(H3RunError, match="episodes changed"):
+        load_h3(cases_path, plan_path, case_ids=[slack_id])
+
+
+def test_case_id_cli_rejects_limit_pairs_and_plans_without_model(tmp_path, capsys):
+    cases_path, plan_path, cases = _files(tmp_path)
+    slack_id = next(c["case_id"] for c in cases["cases"] if c["suite"] == "slack")
+    args = ["--cases", str(cases_path), "--plan", str(plan_path), "--case-id", slack_id]
+    with pytest.raises(SystemExit, match="2"):
+        runner.main([*args, "--limit-pairs", "1", "--plan-only"])
+    assert runner.main([*args, "--plan-only"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["counts"] == {"pairs": 1, "episodes_per_row": 2, "sample_rows": 4}
+
+
 def test_one_repeat_smoke_and_full_plan_have_distinct_run_identities(tmp_path):
     cases_path, plan_path, cases = _files(tmp_path)
     full = h3.expand_dev_plan(cases, repeats=5)
