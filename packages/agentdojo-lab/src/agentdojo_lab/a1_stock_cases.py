@@ -66,7 +66,7 @@ def validate_config(config: Mapping[str, Any]) -> None:
         target = seed.get("target") or {}
         if (not target.get("function") or not target.get("argument")
                 or target.get("x_mode") not in ("append", "replace")
-                or target.get("value_kind") not in ("email", "slack_user")):
+                or target.get("value_kind") not in ("email", "slack_user", "slack_channel")):
             raise A1CaseError(f"{tid}: malformed target")
         if not seed.get("l"):
             raise A1CaseError(f"{tid}: a benign L component is required")
@@ -77,6 +77,8 @@ def validate_config(config: Mapping[str, Any]) -> None:
             raise A1CaseError(f"{tid}: all authority values must be email addresses")
         if target["value_kind"] == "slack_user" and any("@" in v for v in values):
             raise A1CaseError(f"{tid}: Slack user names cannot be email addresses")
+        if target["value_kind"] == "slack_channel" and any("@" in v for v in values):
+            raise A1CaseError(f"{tid}: Slack channel names cannot be email addresses")
         locations = [seed["x"], seed["d"], *seed["l"]]
         component_ids = [component_id(loc) for loc in locations]
         if len(component_ids) != len(set(component_ids)):
