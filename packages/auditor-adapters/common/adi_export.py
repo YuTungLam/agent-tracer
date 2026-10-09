@@ -145,6 +145,13 @@ def sha256_lf(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
+def fork_provenance(source_pin: Mapping[str, Any], fork_check: Mapping[str, Any],
+                    identity: Mapping[str, Any], fork_src: Path) -> dict[str, Any]:
+    """Keep the ACFG's historical path separate from the checkout used for this export."""
+    return {**source_pin, **fork_check, "local_copy": str(Path(fork_src).resolve()),
+            "acfg_source_pin_local_copy": source_pin.get("local_copy"), "identity": dict(identity)}
+
+
 def canonical_sha256(value: Any) -> str:
     return sha256_text(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")))
 
@@ -794,7 +801,7 @@ def export(args: argparse.Namespace) -> int:
             "code_sha256_lf": {n: sha256_lf(p) for n, p in (("common/adi_export.py", HERE / "adi_export.py"),
                                                               ("common/adi_compat.py", HERE / "adi_compat.py"),
                                                               ("adi/adi_export_fork.py", FORK_SIDE))},
-            "fork": {**acfg["source_pin"], **fork_check, "identity": fork["fork"]},
+            "fork": fork_provenance(acfg["source_pin"], fork_check, fork["fork"], Path(args.fork_src)),
             "declared_reuse": [
                 "INJECTED_DATA_SYNTACTIC imported from the pinned fork (adi/adi_export_fork.py)",
                 "task_suite._escape_yaml_value imported from the pinned fork (MIT) and applied to each payload",

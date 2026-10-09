@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -19,7 +20,7 @@ import pytest
 ADI_DIR = Path(__file__).resolve().parents[1]
 REPO = ADI_DIR.parents[2]
 ACFG = REPO / "packages" / "agentdojo-lab" / "configs" / "pilot_protocol_v1_deepseek_amendment_1.json"
-FORK_SRC = REPO.parent / "external-auditors" / "adi" / "src"
+FORK_SRC = Path(os.environ.get("ADI_FORK_SRC") or REPO.parent / "external-auditors" / "adi" / "src")
 
 
 def _module():

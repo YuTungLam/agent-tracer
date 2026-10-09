@@ -282,15 +282,17 @@ python $ROUTE run-stage --artifact argus --config "$SADI/argus/stages.adi.json" 
 | The frozen `argus/stages.json` AL-S2-ADI | Superseded by D30 at the same ceiling. It stays `paid_allowed: false`. |
 | Any comparison with D03's 7/19 or ADI's 53/108 | Different scaffold, oracle and data (ADI-X-4, ADI-X-5). |
 
-## 8. Sign-off lines (the user; each line is approved or declined on its own)
+## 8. User choices, operator disclosure, and commit step
 
 | Line | Text to sign |
 | --- | --- |
-| U1 | **Meaning of "A1 = the 19 ADI cases".** ☐ (a, proposed) the stratum is "ADI-authority (exploratory)": all 19 cases, sub-strata A1mech/Xboth/Xatt reported separately, no A1/H1/H2 label. ☐ (b) the stratum is "A1-ADI (exploratory)": only workspace ut35[0] and ut38[2]; neither passes the current byte-exact conformance gate. |
-| U2 | **Eval protection.** ☐ keep: dev only, up to 8 stock-expressible cases (current scratch gate: 6). ☐ waive for ADI: up to 16 stock-expressible cases (current scratch gate: 12); the 6 tasks shared with SS eval become seen, and banking needs a re-split; sign the ceiling in U3. |
-| U3 | **Budget, guard USD.** ☐ D23 $0.10, D24 $0.25, D25 $0.40, D26 $1.00, D27 $1.00, D28 $2.60, D29 $5.30, D30 $6.50, D31 $0.50, D32 $6.50 (C ≤ $6.50); **total $24.15**, inside the R7 ceiling of **$109.44**, no raise. Alternatives: ☐ with the U2 waiver, $38.85 and a new R7 ceiling of **$118.42**; ☐ with U1 (b), $11.15. |
-| U4 | **Data-read statement**, made by the operator at commit: has anyone read any batch-2 (D08–D22) outcome? ☐ no ☐ yes, exactly: ______ |
-| U5 | **Commit** the amendment and the code of PROT-A1 §11, together with the ARGUS work ("ARGUS进git"), once the components have settled. Then write the hash record (PROT-A1 §12). |
+| U1 | **Signed: (a).** The stratum is "ADI-authority (exploratory)": all 19 cases, sub-strata A1mech/Xboth/Xatt reported separately, no A1/H1/H2 label. Alternative (b), not selected: "A1-ADI (exploratory)" with only workspace ut35[0] and ut38[2]; neither passes the current byte-exact conformance gate. |
+| U2 | **Signed: keep eval protection.** Dev only, up to 8 stock-expressible cases (current scratch gate: 6). Alternative, not selected: waive for ADI, up to 16 stock-expressible cases (current scratch gate: 12), with the stated re-split cost to SS eval. |
+| U3 | **Signed: proposed caps, guard USD.** D23 $0.10, D24 $0.25, D25 $0.40, D26 $1.00, D27 $1.00, D28 $2.60, D29 $5.30, D30 $6.50, D31 $0.50, D32 $6.50 (C ≤ $6.50); **total $24.15**, inside the R7 ceiling of **$109.44**, no raise. Alternatives, not selected: U2 waiver $38.85 with a $118.42 ceiling; U1 (b) $11.15. |
+| U4 | **Operator disclosure: yes.** This continuation opened and verified D08–D13 and D22 results and some raw records. It read D11 ARGUS S1 CLEAN 1/2 `legitimate`, D12 SS-0 `x_sink_called` 0/100, D13 T=0 0/20, and these experiments' status, bills and checks. D14–D21 stopped at the preceding gates and have no results to read. This statement makes no claim about other readers. |
+| U5 | **Commit** the effective amendment and the §12 frozen-config log append, then write the hash record. The ARGUS adapter code is already tracked on the WIP branch; the third-party ARGUS source is excluded and its original artifact pin remains unresolved (PROT-A1 §12–13). |
+
+**User's U1–U3 approval, verbatim (2026-10-09):** “按草案跑探索性 ADI：保留 eval，当前可跑 6 个 dev 案例；批准 D23–D32 各阶段上限合计 $24.15、累计上限 $109.44（推荐）”. U4 is the operator's disclosure above, not a quotation from the user.
 
 ## 9. Checks run for this amendment (2026-10-09; zero cost)
 
@@ -301,7 +303,7 @@ logged.** No model was called, Ollama was not running, and no `.env` value was r
 | Check | Venv | Result |
 | --- | --- | --- |
 | `_adi_a1/amendment/check_amendment.py` part 1. It re-derives the amendment from primary sources: identity; case table vs probes; eligibility vs vendored YAML; splits vs the lab's `task_split` and `split_check`; D03 flags vs the verification report; scope rules; budget vs receipts and the frozen config; docs vs config; the superseded draft. | lab | **78/78 PASS** (`check_out.txt`) |
-| Same script, part 2: the live G-ADI-CODE and G-ADI-STAGES gates (other components were editing the files during this check) | lab | **G-ADI-CODE: PASS.** 0 undeclared files, and the alias `ADI-A1-1` appears in 0 files. **G-ADI-STAGES: OPEN.** The 5 S1 stages match. The 5 S2 stages differ in their caps, and ARGUS also passes `--agent-temperature` (PROT-A1 §13 item 4). |
+| Same script, part 2: the live G-ADI-CODE and G-ADI-STAGES gates (other components were editing the files during this check) | lab | **G-ADI-CODE: PASS.** 0 undeclared files, and the superseded working alias appeared in 0 code files. **G-ADI-STAGES: OPEN.** The 5 S1 stages match. The 5 S2 stages differ in their caps, and ARGUS also passes `--agent-temperature` (PROT-A1 §13 item 4). |
 | `_adi_a1/review_amendment/payload_scan.py` over the repository (689 tracked and untracked files) and the amendment scratch | ADI artifact | Fidelity 0/19 mismatches. **0 files contain a whole payload.** Of this amendment's files: the two docs have 0 shingle hits; the config has one 36-character span, a stock e-mail address that is in vendored AgentDojo data (`span_out_amendment.txt`). |
 | `_adi_a1/amendment/fork_structure.py`, re-run after the review's minor fixes (rglob placeholders, `connect_ex` guard, refusals written to the JSON) | ADI artifact | 19/19 hashes unchanged; workspace placeholder keys now filled; `network_refusals: []` |
 | Snapshot of the changed code (not G-ADI-SSREG): `h2/tests`, `common/tests` (unittest) | lab | h2 26 OK. Common 106 OK (1 skipped) on re-run. In the first run, `test_openai_route` lock test failed once; it passed alone and on re-run. |

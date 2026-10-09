@@ -67,6 +67,20 @@ def table_row(split: str) -> dict:
 
 
 class TextLocationTests(unittest.TestCase):
+    def test_fork_provenance_records_executed_checkout_separately_from_draft_path(self):
+        with tempfile.TemporaryDirectory(prefix="adi-fork-path-") as temp:
+            actual = Path(temp) / "fork"
+            actual.mkdir()
+            source_pin = {"repository": "https://example.invalid/adi", "commit": "pinned",
+                          "local_copy": "D:/old-machine/external-auditors/adi/src"}
+            got = ex.fork_provenance(source_pin, {"clean_tree": True}, {"python": "3.12"},
+                                     actual / ".." / "fork")
+            self.assertEqual(got["local_copy"], str(actual.resolve()))
+            self.assertEqual(got["acfg_source_pin_local_copy"], source_pin["local_copy"])
+            self.assertEqual(got["commit"], "pinned")
+            self.assertTrue(got["clean_tree"])
+            self.assertEqual(source_pin["local_copy"], "D:/old-machine/external-auditors/adi/src")
+
     def test_json_decode_map_keeps_source_offsets(self):
         rendered = json.dumps({"s": 'a "b"\ncafé ' + fx.X})
         hay, idx = ex.json_decode_map(rendered)
@@ -218,6 +232,10 @@ class ForkExportIntegrationTests(unittest.TestCase):
         self.assertEqual(report["gates"]["G-ADI-EXPORT"]["hashes_match_acfg"], 19)
         self.assertEqual(report["network_refusals"], [])
         doc = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(report["fork"]["local_copy"], str(Path(os.environ["ADI_FORK_SRC"]).resolve()))
+        self.assertEqual(doc["generator"]["fork"], report["fork"])
+        self.assertEqual(report["fork"]["acfg_source_pin_local_copy"],
+                         json.loads(acfg.read_text(encoding="utf-8"))["source_pin"]["local_copy"])
         self.assertEqual(ex.verify_case_file(doc, json.loads(acfg.read_text(encoding="utf-8"))), [])
         self.assertEqual((out.with_name(out.name + ".sha256")).read_text(encoding="utf-8").split()[0], ex.sha256_lf(out))
 
