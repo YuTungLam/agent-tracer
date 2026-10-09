@@ -9,7 +9,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -65,8 +66,9 @@ def validate_config(config: Mapping[str, Any]) -> None:
             raise A1CaseError(f"{tid}: task, native vector and realism note required")
         target = seed.get("target") or {}
         if (not target.get("function") or not target.get("argument")
-                or target.get("x_mode") not in ("append", "replace")
-                or target.get("value_kind") not in ("email", "slack_user", "slack_channel")):
+                or target.get("x_mode") not in ("append", "replace", "replace_list")
+                or target.get("value_kind") not in ("email", "slack_user", "slack_channel")
+                or type(target.get("occurrence", 0)) is not int or target.get("occurrence", 0) < 0):
             raise A1CaseError(f"{tid}: malformed target")
         if not seed.get("l"):
             raise A1CaseError(f"{tid}: a benign L component is required")
@@ -87,6 +89,23 @@ def validate_config(config: Mapping[str, Any]) -> None:
             raise A1CaseError(f"{tid}: steering overlaps a candidate component")
         if seed["x"]["source_index"] == seed["steering"]["source_index"]:
             raise A1CaseError(f"{tid}: A1 X and steering must be different tool results")
+        volatile = seed.get("volatile_sources", [])
+        if not isinstance(volatile, list):
+            raise A1CaseError(f"{tid}: volatile_sources must be a list")
+        volatile_indices = set()
+        for spec in volatile:
+            if (not isinstance(spec, dict) or spec.get("tool") != "append_to_file"
+                    or spec.get("path") != ["last_modified"] or spec.get("kind") != "timestamp"
+                    or type(spec.get("source_index")) is not int or spec["source_index"] < 0
+                    or spec["source_index"] == seed["steering"]["source_index"]
+                    or spec["source_index"] in volatile_indices):
+                raise A1CaseError(f"{tid}: only a separate append_to_file.last_modified timestamp is volatile")
+            volatile_indices.add(spec["source_index"])
+        if seed.get("allow_derived_content_size", False):
+            steering = seed["steering"]
+            if (steering["tool"] != "search_files_by_filename" or steering["path"] != ["content"]
+                    or not steering.get("match", {}).get("filename")):
+                raise A1CaseError(f"{tid}: derived size is only allowed for a selected file content")
         grammar = seed.get("grammar") or {}
         for key in ("ss_subject", "a1_subject", "instruction_template", "fact_template"):
             if not isinstance(grammar.get(key), str) or not grammar[key]:
@@ -99,10 +118,15 @@ def validate_config(config: Mapping[str, Any]) -> None:
             raise A1CaseError(f"{tid}: instruction must start with a directive")
         if re.search(r"\b(include|send|please|must|should|do)\b", grammar["fact_template"], re.I):
             raise A1CaseError(f"{tid}: fact text contains a directive marker")
+    pc5_ids = config.get("pc5_case_ids", [])
+    if (not isinstance(pc5_ids, list) or any(not isinstance(tid, str) for tid in pc5_ids)
+            or len(pc5_ids) != len(set(pc5_ids)) or any(tid in ids for tid in pc5_ids)):
+        raise A1CaseError("PC5 case IDs must be unique and separate from native seed IDs")
 
 
 def component_id(loc: Mapping[str, Any]) -> str:
-    return digest({"source_index": loc["source_index"], "match": loc.get("match"), "path": loc["path"]})
+    return digest({"source_index": loc["source_index"], "match": loc.get("match"), "path": loc["path"],
+                   "sentence_contains": loc.get("sentence_contains")})
 
 
 def make_case(seed: Mapping[str, Any], defaults: Mapping[str, str], config: Mapping[str, Any]) -> dict[str, Any]:
@@ -140,6 +164,8 @@ def make_case(seed: Mapping[str, Any], defaults: Mapping[str, str], config: Mapp
         "vector_id": vector,
         "steering": seed["steering"],
         "x": seed["x"], "d": seed["d"], "l": seed["l"],
+        "volatile_sources": seed.get("volatile_sources", []),
+        "allow_derived_content_size": seed.get("allow_derived_content_size", False),
         "realism_note": seed["realism_note"],
         "length_codepoints": lengths,
         "arms": arms,
@@ -172,7 +198,33 @@ def _get_component(source: Mapping[str, Any], loc: Mapping[str, Any]) -> Any:
             value = value[key]
         except (KeyError, IndexError, TypeError) as exc:
             raise A1CaseError(f"missing component path {loc['path']}") from exc
+    sentence_contains = loc.get("sentence_contains")
+    if sentence_contains is not None:
+        if not isinstance(value, str):
+            raise A1CaseError("sentence selector requires a text component")
+        sentences = re.split(r"(?<=[.!?。！？])\s+|[\r\n]+", value)
+        found = [sentence for sentence in sentences if sentence_contains in sentence]
+        if len(found) != 1:
+            raise A1CaseError(f"sentence selector matched {len(found)} components")
+        value = found[0]
     return value
+
+
+def _candidate_present(source: Mapping[str, Any], loc: Mapping[str, Any]) -> bool:
+    component = _get_component(source, loc)
+    if loc.get("value_match") == "word":
+        if not isinstance(component, str):
+            return False
+        return _value_occurrences(component, loc["value"]) == 1
+    if loc.get("value_match") is not None:
+        raise A1CaseError(f"unknown value_match {loc['value_match']}")
+    return component == loc["value"]
+
+
+def _value_occurrences(text: str, value: str) -> int:
+    normalized = re.sub(r"\s+", " ", text).casefold()
+    candidate = re.sub(r"\s+", " ", value).casefold()
+    return len(re.findall(rf"(?<!\w){re.escape(candidate)}(?!\w)", normalized))
 
 
 def _diff_leaves(before: Any, after: Any, path: tuple[Any, ...] = ()) -> list[tuple[Any, ...]]:
@@ -202,6 +254,54 @@ def _one_native_field_or_mirror(clean: Any, attack: Any, paths: list[tuple[Any, 
             and _at(attack, paths[0]) == _at(attack, paths[1]))
 
 
+def _content_size_mirror(clean: Any, attack: Any, paths: list[tuple[Any, ...]]) -> bool:
+    if len(paths) not in (2, 4):
+        return False
+    parents = {path[:-1] for path in paths}
+    if len(parents) * 2 != len(paths):
+        return False
+    if any({path[-1] for path in paths if path[:-1] == parent} != {"content", "size"}
+           for parent in parents):
+        return False
+    if len(parents) == 2 and {parent[:2] for parent in parents} != {
+            ("cloud_drive", "initial_files"), ("cloud_drive", "files")
+    }:
+        return False
+    for value in (clean, attack):
+        contents = []
+        for parent in parents:
+            content = _at(value, (*parent, "content"))
+            size = _at(value, (*parent, "size"))
+            if not isinstance(content, str) or type(size) is not int or size != len(content):
+                return False
+            contents.append(content)
+        if len(contents) == 2 and contents[0] != contents[1]:
+            return False
+    return True
+
+
+def _normalized_source(source: Mapping[str, Any], spec: Mapping[str, Any] | None) -> dict[str, Any]:
+    if spec is None:
+        return dict(source)
+    if source["tool"] != spec["tool"]:
+        raise A1CaseError("volatile source tool does not match its declaration")
+    parsed = yaml.safe_load(source["text"])
+    if not isinstance(parsed, dict):
+        raise A1CaseError("volatile source must be a rendered mapping")
+    timestamp = parsed.get("last_modified")
+    if not isinstance(timestamp, datetime):
+        raise A1CaseError("declared volatile last_modified is not a timestamp")
+    parsed["last_modified"] = "<native append timestamp>"
+    return {"tool": source["tool"], "parsed": parsed}
+
+
+def _normalized_sources(case: Mapping[str, Any], sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    specs = {spec["source_index"]: spec for spec in case.get("volatile_sources", [])}
+    if any(index >= len(sources) for index in specs):
+        raise A1CaseError("declared volatile source is not exposed before the sink")
+    return [_normalized_source(source, specs.get(index)) for index, source in enumerate(sources)]
+
+
 def validate_probe(case: Mapping[str, Any], probe: Mapping[str, Any]) -> dict[str, Any]:
     """Fail closed if native GT does not establish all pre-sink invariants."""
     traces = probe.get("arms") or {}
@@ -209,6 +309,7 @@ def validate_probe(case: Mapping[str, Any], probe: Mapping[str, Any]) -> dict[st
         raise A1CaseError(f"{case['case_id']}: missing or extra native GT arms")
     clean = traces["CLEAN"]
     baseline_sources = clean["sources"]
+    baseline_normalized = _normalized_sources(case, baseline_sources)
     if not clean.get("utility") or not clean.get("sink_called"):
         raise A1CaseError(f"{case['case_id']}: native CLEAN ground truth failed")
     if case["steering"]["source_index"] >= len(baseline_sources):
@@ -217,34 +318,39 @@ def validate_probe(case: Mapping[str, Any], probe: Mapping[str, Any]) -> dict[st
     for arm in ARMS:
         trace = traces[arm]
         sources = trace["sources"]
+        normalized = _normalized_sources(case, sources)
         if not trace.get("utility") or not trace.get("sink_called"):
             raise A1CaseError(f"{case['case_id']} {arm}: native GT failed")
         if [s["tool"] for s in sources] != [s["tool"] for s in baseline_sources]:
             raise A1CaseError(f"{case['case_id']} {arm}: pre-sink tool order changed")
         for loc in all_locs:
             idx = loc["source_index"]
-            if idx >= len(sources) or _get_component(sources[idx], loc) != loc["value"]:
+            if idx >= len(sources) or not _candidate_present(sources[idx], loc):
                 raise A1CaseError(f"{case['case_id']} {arm}: candidate changed or not exposed")
         sidx = case["steering"]["source_index"]
         steering_leaf = _get_component(sources[sidx], case["steering"])
         if not isinstance(steering_leaf, str) or case["arms"][arm]["arm_text"] not in steering_leaf:
             raise A1CaseError(f"{case['case_id']} {arm}: steering absent from declared rendered component")
-        if arm == "SS-instr" and case["x"]["value"] not in steering_leaf:
+        if arm == "SS-instr" and not _value_occurrences(steering_leaf, case["x"]["value"]):
             raise A1CaseError(f"{case['case_id']}: SS steering and X are not colocated")
-        if arm.startswith("A1") and case["x"]["value"] in steering_leaf:
-            raise A1CaseError(f"{case['case_id']} {arm}: steering component names X")
+        if arm != "SS-instr" and _value_occurrences(sources[sidx]["text"], case["x"]["value"]):
+            raise A1CaseError(f"{case['case_id']} {arm}: steering source names X")
         if arm != "CLEAN":
-            changed_sources = [i for i, (a, b) in enumerate(zip(baseline_sources, sources, strict=True))
-                               if a["text"] != b["text"]]
+            changed_sources = [i for i, (a, b) in enumerate(zip(baseline_normalized, normalized, strict=True))
+                               if a != b]
             if changed_sources != [sidx]:
                 raise A1CaseError(f"{case['case_id']} {arm}: tool-source changes {changed_sources}")
-            source_diffs = _diff_leaves(yaml.safe_load(baseline_sources[sidx]["text"]),
-                                       yaml.safe_load(sources[sidx]["text"]))
-            # Plain-text web output is one scalar. Structured YAML must change one leaf.
-            if len(source_diffs) != 1:
+            source_before = yaml.safe_load(baseline_sources[sidx]["text"])
+            source_after = yaml.safe_load(sources[sidx]["text"])
+            source_diffs = _diff_leaves(source_before, source_after)
+            # A file's size can mirror the one edited content scalar exactly.
+            if len(source_diffs) != 1 and not (case.get("allow_derived_content_size")
+                                               and _content_size_mirror(source_before, source_after, source_diffs)):
                 raise A1CaseError(f"{case['case_id']} {arm}: changed {len(source_diffs)} rendered components")
             env_diffs = _diff_leaves(clean["pre_environment"], trace["pre_environment"])
-            if not _one_native_field_or_mirror(clean["pre_environment"], trace["pre_environment"], env_diffs):
+            if not (_one_native_field_or_mirror(clean["pre_environment"], trace["pre_environment"], env_diffs)
+                    or (case.get("allow_derived_content_size")
+                        and _content_size_mirror(clean["pre_environment"], trace["pre_environment"], env_diffs))):
                 raise A1CaseError(f"{case['case_id']} {arm}: changed native environment components {env_diffs}")
     for candidate in ("X", "D"):
         detail = (probe.get("substitutes") or {}).get(candidate) or {}
@@ -260,18 +366,26 @@ def validate_probe(case: Mapping[str, Any], probe: Mapping[str, Any]) -> dict[st
         "native_clean_utility": True,
         "native_x_executable": True,
         "native_d_executable": True,
-        "source_sha256_by_arm": {arm: [digest(source) for source in traces[arm]["sources"]] for arm in ARMS},
+        "source_sha256_by_arm": {
+            arm: [digest(source) for source in _normalized_sources(case, traces[arm]["sources"])] for arm in ARMS
+        },
     }
 
 
 def generate_cases(config: Mapping[str, Any], vector_defaults: Mapping[str, str],
-                   probe_provider: Callable[[dict[str, Any]], Mapping[str, Any]]) -> dict[str, Any]:
+                   probe_provider: Callable[[dict[str, Any]], Mapping[str, Any]],
+                   supplemental_cases: Sequence[dict[str, Any]] = ()) -> dict[str, Any]:
     validate_config(config)
     cases = []
     for seed in config["seeds"]:
         case = make_case(seed, vector_defaults, config)
         case["conformance"] = validate_probe(case, probe_provider(case))
         cases.append(case)
+    if [case["case_id"] for case in supplemental_cases] != config.get("pc5_case_ids", []):
+        raise A1CaseError("supplemental PC5 cases do not match the frozen config registry")
+    if any(case.get("conformance", {}).get("all") is not True for case in supplemental_cases):
+        raise A1CaseError("supplemental PC5 case lacks native conformance")
+    cases.extend(supplemental_cases)
     return {
         "schema": SCHEMA_CASES,
         "config_sha256": digest(config),

@@ -21,7 +21,7 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "src"))
 
-from agentdojo_lab import a1_stock_cases  # noqa: E402
+from agentdojo_lab import a1_pc5_slack_s13, a1_stock_cases  # noqa: E402
 
 
 def _native_probe_provider(benchmark_version: str):
@@ -53,13 +53,16 @@ def _native_probe_provider(benchmark_version: str):
                                                       pre, post, stack))
         sources = []
         sink_called = False
+        target_seen = 0
         for message in messages:
             if message["role"] != "tool":
                 continue
             tool = message["tool_call"].function
             if tool == case["target"]["function"]:
-                sink_called = True
-                break
+                if target_seen == case["target"].get("occurrence", 0):
+                    sink_called = True
+                    break
+                target_seen += 1
             content = "".join(block.get("content") or "" for block in message["content"]
                               if isinstance(block, dict))
             sources.append({"tool": tool, "text": content})
@@ -76,23 +79,32 @@ def _native_probe_provider(benchmark_version: str):
         calls = []
         sink_called = False
         sink_success = False
+        target_seen = 0
         for call in task.ground_truth(pre.model_copy(deep=True)):
             args = dict(call.args)
+            is_target = False
             if call.function == target["function"]:
-                sink_called = True
-                key = target["argument"]
-                if target["x_mode"] == "append":
-                    if not isinstance(args[key], list) or candidate in args[key]:
-                        raise a1_stock_cases.A1CaseError("append target is not a list or candidate is already legal")
-                    args[key] = [*args[key], candidate]
-                else:
-                    args[key] = candidate
+                is_target = target_seen == target.get("occurrence", 0)
+                target_seen += 1
+                if is_target:
+                    sink_called = True
+                    key = target["argument"]
+                    if target["x_mode"] == "append":
+                        if not isinstance(args[key], list) or candidate in args[key]:
+                            raise a1_stock_cases.A1CaseError("append target is not a list or candidate is already legal")
+                        args[key] = [*args[key], candidate]
+                    elif target["x_mode"] == "replace_list":
+                        if not isinstance(args[key], list) or candidate in args[key]:
+                            raise a1_stock_cases.A1CaseError("replace_list target is not a list or candidate is already legal")
+                        args[key] = [candidate]
+                    else:
+                        args[key] = candidate
             _, error = runtime.run_function(env, call.function, args, raise_on_error=False)
             if error:
                 return {"sink_called": sink_called, "sink_success": False,
                         "state_changed": False, "utility": None, "error": str(error)[:200]}
             calls.append(call.model_copy(update={"args": args}))
-            if call.function == target["function"]:
+            if is_target:
                 sink_success = True
         utility = bool(suite._check_user_task_utility(task,
                       [text_content_block_from_string(task.GROUND_TRUTH_OUTPUT)], pre, env, calls))
@@ -129,8 +141,16 @@ def main(argv: list[str] | None = None) -> int:
     defaults = {}
     for suite_name in {seed["suite"] for seed in config["seeds"]}:
         defaults.update(get_suite(config["benchmark_version"], suite_name).get_injection_vector_defaults())
+    supplemental_cases = []
+    for case_id in config.get("pc5_case_ids", []):
+        if case_id != a1_pc5_slack_s13.TEMPLATE_ID:
+            parser.error(f"no PC5 case builder for {case_id}")
+        case = a1_pc5_slack_s13.make_case()
+        case["conformance"] = a1_pc5_slack_s13.validate_native(case, a1_pc5_slack_s13.native_probe(case))
+        supplemental_cases.append(case)
     doc = a1_stock_cases.generate_cases(config, defaults,
-                                        _native_probe_provider(config["benchmark_version"]))
+                                        _native_probe_provider(config["benchmark_version"]),
+                                        supplemental_cases=supplemental_cases)
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(doc, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
