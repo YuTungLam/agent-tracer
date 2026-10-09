@@ -1,0 +1,33 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "h2",
+  "about": "After-data exploratory two-case A1 PC5/PC4 repair screen. S8 uses a separate attacker-owned Slack member message; W34 attacks Mark's native recipe vector against identical Emma-owned benign search background. Both cases require independent native-GT validation. This file has only a bounded smoke stage; no full-stage auto-continuation. The v1 stage file and historical results remain frozen.",
+  "historical_boundary": "The first four-case G1 screen is a separate experiment; this v2 fixture screen cannot be pooled with its episodes or used to relabel historical H1/H2 or G1 results.",
+  "price_basis": "DeepSeek official https://api-docs.deepseek.com/quick_start/pricing/ verified 2026-10-10, peak uncached deepseek-flash input USD 0.30/M and output USD 1.20/M. Guard charges the conservative peak/no-cache snapshot; receipt is an estimate, not invoice.",
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "model_aliases": [],
+    "max_tokens_default": 2048,
+    "max_tokens_ceiling": 2048,
+    "request_timeout_seconds": 120,
+    "paid_allowed": true,
+    "dry_run_allowed": false,
+    "fidelity": "native AgentDojo v1.2.2 user tasks, no-defense DeepSeek Flash, typed authority sink and target state marker"
+  },
+  "stages": {
+    "G1-V2-SMOKE": {
+      "description": "Exactly two native-validated dev cases (Slack S8 PC5, workspace W34 PC4 with fixed benign background) x CLEAN/SS-instr/A1-instr/A1-fact x two fresh repeats = 16 episodes. No full stage follows automatically.",
+      "argv": ["{artifact_python}", "{adapter_dir}/run_a1_screen_v2.py", "--cases", "{cases}", "--expect-case-sha256", "{cases_sha256}", "--expect-code-commit", "{code_commit}", "--stage-config", "{adapter_dir}/stages.a1.v2.json", "--stage", "{stage}", "--lab-root", "{artifact_root}", "--results-root", "{results_root}", "--out-dir", "{out_dir}/a1-v2"],
+      "arms": ["CLEAN", "SS-instr", "A1-instr", "A1-fact"],
+      "repeats": 2,
+      "temperature": 0.7,
+      "episode_request_ceiling": 48,
+      "cap_usd": 0.25,
+      "cap_tokens": 450000,
+      "cap_requests": 320,
+      "timeout_seconds": 5400,
+      "estimate": "16 episodes at the earlier H2 6.9k-token/episode profile would be about 110k tokens; the new S8/W34 fixtures may differ, so the estimate is unverified. Hard guard cap is USD 0.25, 450k tokens and 320 requests."
+    }
+  }
+}
