@@ -1991,6 +1991,26 @@
       ],
       "change": "adds the ADI-derived authority family (19 cases, our classification of ADI's 108 published syntactic cases; 16 expressible on stock v1.2.2; 8 dev-split candidates before G-ADI-CONF, 6 eligible dev cases under the 2026-10-09 scratch gate) with arms ATTACK and CLEAN, its per-auditor scope table, sub-strata, estimands, gates, deviations ADI-X-1..ADI-X-13, experiments D23-D33 with caps totalling $24.15 guard USD inside the existing $109.44 ceiling, and the post-processor/runner changes listed in changed_code_since_freeze",
       "reason": "user decision 2026-10-09: 'A1用ADI的19个案例' (use ADI's 19 cases for the A1 stratum); made after D01-D07 (including D03, the ADI baseline on these 19 cases) and after batch-2 SS output exists"
+    },
+    {
+      "id": "authority-auditor-pilot-v1-deepseek.2",
+      "at_utc": "2026-10-09T06:09:48Z",
+      "after_seeing_data": true,
+      "affected_experiments": [
+        "D23",
+        "D24",
+        "D25",
+        "D26",
+        "D27",
+        "D28",
+        "D29",
+        "D30",
+        "D31",
+        "D32",
+        "D33"
+      ],
+      "change": "Under user-approved choice A, replace only the Gate S1-ADI JSON-output subcondition with pinned fork-formatter wiring and output-type conformity: source-classified structured rendered outputs must parse as JSON; source-inferred scalar fallback and failed empty outputs are separately counted and hash-recorded. Original runtime return objects were not archived. All other S1 and downstream gates, stage caps, cases and eval protection remain; D23 original-rule FAIL is preserved, and any carry-forward is labelled pre-amendment evidence.",
+      "reason": "After D23, eight successful tool outputs and two failed-call empty outputs were not parseable JSON although the pinned ADI JSON formatter was selected and its source passes scalar returns through str(tool_result). This is a post-data rule change; the user replied verbatim '行' after A/B/C choices were presented with A recommended."
     }
   ],
   "freeze_timing": {
