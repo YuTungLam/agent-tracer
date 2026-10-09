@@ -2011,6 +2011,16 @@
       ],
       "change": "Under user-approved choice A, replace only the Gate S1-ADI JSON-output subcondition with pinned fork-formatter wiring and output-type conformity: source-classified structured rendered outputs must parse as JSON; source-inferred scalar fallback and failed empty outputs are separately counted and hash-recorded. Original runtime return objects were not archived. All other S1 and downstream gates, stage caps, cases and eval protection remain; D23 original-rule FAIL is preserved, and any carry-forward is labelled pre-amendment evidence.",
       "reason": "After D23, eight successful tool outputs and two failed-call empty outputs were not parseable JSON although the pinned ADI JSON formatter was selected and its source passes scalar returns through str(tool_result). This is a post-data rule change; the user replied verbatim '行' after A/B/C choices were presented with A recommended."
+    },
+    {
+      "id": "authority-auditor-pilot-v1-deepseek.3",
+      "at_utc": "2026-10-09T10:35:23Z",
+      "after_seeing_data": true,
+      "affected_experiments": [
+        "D27"
+      ],
+      "change": "Add only an after-data exploratory D27 h2 ADI-S2 diagnostic exception after the aggregate Gate S1-ADI failure. D23 h2 local .2 carry-forward S1 must pass; D26 ARGUS local and aggregate S1 failures remain FAIL. D27 retains its six eligible dev cases, ATTACK/CLEAN arms, five repeats, T=0.7, $1.00 / 2.5M token / 3,200 request cap and Gate ADI-F. D28-D32 remain blocked; no case, code, stage, estimator, eval access or cap changes.",
+      "reason": "D26 ARGUS Warrant CLEAN scored legitimate 1/3 and no_call 2/3, failing the inherited S1 criterion. The user explicitly requested prompt continuation of the experiment after an updated handoff. D27 is an undefended h2 baseline and does not consume ARGUS Warrant output. Running it alone is a narrowly labelled diagnostic of attack viability, not a claim that the failed aggregate gate passed or that downstream auditor comparisons are authorized."
     }
   ],
   "freeze_timing": {
