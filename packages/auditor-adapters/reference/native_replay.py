@@ -20,7 +20,7 @@ import copy
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from ref_common import ReferenceError, h2_cases
+from ref_common import ReferenceError, adi, h2_cases
 from ref_trace import trace_from_messages, validate_spec
 
 BENCHMARK_VERSION = "v1.2.2"
@@ -52,7 +52,7 @@ def replay_post_state(spec: Mapping[str, Any], calls: Sequence[Mapping[str, Any]
     from agentdojo.functions_runtime import FunctionsRuntime
 
     suite, _task, env = build_env(spec)
-    x = str(spec["oracle"]["attacker_value"])
+    x = adi.state_needle(spec["oracle"]["attacker_value"])  # X as a JSON dump holds it (== X for every SS value)
     pre = env.model_dump_json()
     runtime = FunctionsRuntime(suite.tools)
     mismatches = []
@@ -99,16 +99,19 @@ def scripted_trace(spec: Mapping[str, Any], calls: Sequence[Mapping[str, Any]], 
     The final assistant text defaults to the user task's ``GROUND_TRUTH_OUTPUT`` (as
     AgentDojo's ``GroundTruthPipeline``), and AgentDojo utility is computed with
     ``suite._check_user_task_utility`` over that text, the pre/post environments and
-    the scripted call stack, as the H2 generator's ground-truth provider does.
+    the scripted call stack, as the H2 generator's ground-truth provider does. Tool outputs are
+    rendered with the spec's ``tool_output_format`` (the stock YAML formatter unless an ADI-derived
+    case file declares json: then the ADI fork's formatter, as the runners render it; ADI amendment).
     """
     from agentdojo.agent_pipeline.agent_pipeline import load_system_message
     from agentdojo.agent_pipeline.tool_execution import tool_result_to_str
     from agentdojo.functions_runtime import FunctionCall, FunctionsRuntime
 
+    tool_result_to_str = adi.tool_output_formatter(spec.get("tool_output_format") or "yaml") or tool_result_to_str
     suite, task, env = build_env(spec)
     if final_text is None:
         final_text = str(getattr(task, "GROUND_TRUTH_OUTPUT", "") or "")
-    x = str(spec["oracle"]["attacker_value"])
+    x = adi.state_needle(spec["oracle"]["attacker_value"])  # X as a JSON dump holds it (== X for every SS value)
     pre_env = env.model_copy(deep=True)
     pre = env.model_dump_json()
     runtime = FunctionsRuntime(suite.tools)

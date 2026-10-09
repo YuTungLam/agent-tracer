@@ -24,6 +24,27 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
+
+def _load_adi_compat() -> Any:
+    """``common/adi_compat.py`` (ADI-derived case files, ADI amendment), loaded by path under its own
+    module name, so this module stays importable from any directory (the post-processor and PAA load it by path)."""
+    import importlib.util
+    import sys
+
+    if "adi_compat" in sys.modules:
+        return sys.modules["adi_compat"]
+    path = Path(__file__).resolve().parent.parent / "common" / "adi_compat.py"
+    spec = importlib.util.spec_from_file_location("adi_compat", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["adi_compat"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+adi = _load_adi_compat()
+
 SCHEMA_CASES = "h2-cases/v2"
 SCHEMA_EPISODE = "h2-episode/v2"
 SCHEMA_PLAN = "h2-episode-plan/v2"
@@ -54,13 +75,32 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def sha256_text_lf(path: Path) -> str:
+    """SHA-256 of a file with CRLF normalised to LF (the run-time case-file pin of the ADI stages)."""
+    return sha256_bytes(Path(path).read_bytes().replace(b"\r\n", b"\n"))
+
+
 def load_case_file(path: Path) -> dict[str, Any]:
     doc = json.loads(Path(path).read_text(encoding="utf-8"))
     if doc.get("schema") != SCHEMA_CASES:
         raise H2RunError(f"case file schema must be {SCHEMA_CASES}")
     if not isinstance(doc.get("cases"), list) or not doc["cases"]:
         raise H2RunError("case file has no cases")
+    tool_output_format(doc)  # refuse an unknown declared format before anything is planned
     return doc
+
+
+def declared_tool_output_format(case_file: Mapping[str, Any]) -> str | None:
+    """The case file's top-level ``tool_output_format`` as declared (None when absent; SS files declare none)."""
+    try:
+        return adi.declared_tool_output_format(case_file)
+    except adi.CaseFormatError as exc:
+        raise H2RunError(str(exc)) from None
+
+
+def tool_output_format(case_file: Mapping[str, Any]) -> str:
+    """``"yaml"`` (absent: stock AgentDojo, every SS run) or ``"json"`` (the ADI fork's formatter)."""
+    return declared_tool_output_format(case_file) or adi.DEFAULT_TOOL_OUTPUT_FORMAT
 
 
 def _match(value: Any, allowed: Any) -> bool:
@@ -96,15 +136,29 @@ def expand_stage(case_file: Mapping[str, Any], stage: Mapping[str, Any]) -> list
     max_cases = stage.get("max_cases")
     if max_cases is not None:
         selected = selected[: int(max_cases)]
+    try:  # ADI-derived cases are their own group: never in one plan with E0B / E1PRE (ADI amendment)
+        adi.check_family_mix((c.get("seed_family") for c in selected), "stage selection")
+    except adi.CaseFormatError as exc:
+        raise H2RunError(str(exc)) from None
     out: list[dict[str, Any]] = []
     seq = 0
     for case in selected:
+        adi_case = case.get("seed_family") == adi.ADI_FAMILY
+        try:  # an ADI case reaches a stage with its executability resolved (G-ADI-CONF), never null (m5)
+            adi.require_resolved_executability(case)
+        except adi.CaseFormatError as exc:
+            raise H2RunError(str(exc)) from None
         for arm in arms:
             if arm not in case["arms"]:
                 raise H2RunError(f"case {case['case_id']} has no arm {arm!r}")
             gt = case.get("gt") or {}
+            try:  # ADI-X-11: an arm's own legitimate set wins; SS cases have none, so they read as before
+                arm_legit = adi.arm_legitimate_set(case, arm)
+            except adi.CaseFormatError as exc:
+                raise H2RunError(str(exc)) from None
+            legit = arm_legit if arm_legit is not None else list(case.get("legitimate_set") or [case.get("legitimate_value")])
             for rep in range(repeats):
-                out.append({
+                episode = {
                     "episode_id": f"{case['case_id']}|{arm}|r{rep}",
                     "seq": seq,
                     "case_id": case["case_id"],
@@ -113,7 +167,7 @@ def expand_stage(case_file: Mapping[str, Any], stage: Mapping[str, Any]) -> list
                     "suite": case["suite"],
                     "user_task_id": case["user_task_id"],
                     "target": dict(case["target"]),
-                    "legitimate_set": list(case.get("legitimate_set") or [case.get("legitimate_value")]),
+                    "legitimate_set": list(legit),
                     "legitimate_value": case.get("legitimate_value"),
                     "attacker_value": case["attacker_value"],
                     "attacker_value_kind": case.get("attacker_value_kind"),
@@ -124,7 +178,10 @@ def expand_stage(case_file: Mapping[str, Any], stage: Mapping[str, Any]) -> list
                     "carries_attacker_value": case["arms"][arm]["carries_attacker_value"],
                     "attacker_executable": bool(gt.get("attacker_executable")),
                     "attacker_state_observable": bool(gt.get("attacker_execution_state_observable")),
-                })
+                }
+                if adi_case:  # M2: exposure of an ADI arm is the payload as the environment holds it (SS plans unchanged)
+                    episode["exposure_needles"] = adi.adi_exposure_needles(case, arm)
+                out.append(episode)
                 seq += 1
     ids = [e["episode_id"] for e in out]
     if len(ids) != len(set(ids)):
@@ -398,7 +455,7 @@ def summarize(case_file: Mapping[str, Any], stage_name: str, planned: Sequence[M
     prompt = sum(int(r.get("prompt_tokens") or 0) for r in records)
     completion = sum(int(r.get("completion_tokens") or 0) for r in records)
     _ = plan_by_id
-    return {
+    doc = {
         "schema": SCHEMA_SUMMARY,
         "stage": stage_name,
         "mode": mode,
@@ -438,3 +495,22 @@ def summarize(case_file: Mapping[str, Any], stage_name: str, planned: Sequence[M
             "price_snapshot_id": (price or {}).get("snapshot_id"),
         },
     }
+    family_of = {c.get("case_id"): c.get("seed_family") for c in case_file.get("cases") or []}
+    if adi.has_adi(family_of.get(e["case_id"]) for e in planned):
+        _adi_labels(doc, case_file, mode)
+    return doc
+
+
+def _adi_labels(doc: dict[str, Any], case_file: Mapping[str, Any], mode: str) -> None:
+    """Relabel an ADI-family summary in place (ADI amendment). The SS keys stay (with null contrasts),
+    so readers of the summary shape keep working; nothing here is an H2 or H2-SS number."""
+    doc["evidence_label"] = ("plumbing dry run only (not evidence)" if mode != "deepseek"
+                             else "backbone-substituted (deepseek-flash); ADI-derived authority cases (amendment "
+                                  + adi.AMENDMENT_ID + "); exploratory")
+    doc["stratum_note"] = ("ADI-derived cases (seed family ADI, arms ATTACK and CLEAN), not the SS framing contrast: "
+                           "ss_contrast and cluster_bootstrap are null by construction. " + adi.AMENDMENT_NOTE)
+    doc["seed_family"] = adi.ADI_FAMILY
+    doc["amendment"] = adi.AMENDMENT_ID
+    doc["tool_output_format"] = tool_output_format(case_file)
+    doc["definitions"]["pooling"] = ("every block holds ADI cases only (the loader refuses a plan that mixes ADI with "
+                                     "E0B or E1PRE); the post-processor reports the ADI family as its own group")

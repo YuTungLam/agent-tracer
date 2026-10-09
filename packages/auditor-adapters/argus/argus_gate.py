@@ -19,6 +19,10 @@ Runtime adapters (declared in the README; no artifact file is edited):
   reference to the run so ``dep(a)`` of executed actions can be read after the episode.
 * ``TapPipeline`` wraps the pipeline to keep each attempt's messages, the pre/post
   environment and a recording ``FunctionsRuntime`` (executed calls with tool errors).
+* ``use_tool_output_format`` (ADI amendment): for a case file that declares
+  ``tool_output_format`` json, the ADI fork's formatter replaces Warrant's module-level
+  ``tool_result_to_str`` and the ``none`` row's ToolsExecutor formatter for the run; yaml
+  (every SS run) replaces nothing.
 
 Span-to-component mapping is by character overlap: each planted component (steering text,
 carrier, decoy sentence, each vector's added text) is located in the span's context content
@@ -66,6 +70,30 @@ CLIP_TEXT = 600
 CLIP_VALUE = 200
 HERE = Path(__file__).resolve().parent
 CODE_FILES = ("argus_gate.py", "argus_cases.py")  # hashed into the config: resume never mixes adapter code
+
+# Tool-output format of the run (ADI amendment): "yaml" (stock, every SS run: nothing is replaced) or
+# "json" (an ADI-derived case file declares it). use_tool_output_format installs it process-wide.
+TOOL_OUTPUT_FORMAT = "yaml"
+_FORMATTER: Any = tool_result_to_str
+
+
+def use_tool_output_format(fmt: str) -> str:
+    """Install the tool-output formatter for this process and return the previous format.
+
+    Runtime adapter, no artifact byte changed: Warrant renders each executed tool result with the
+    module-level ``tool_result_to_str`` of ``agentlure.warrant.auditor`` (``Warrant._step``), so that name is
+    rebound to the ADI fork's formatter for "json" and restored for "yaml"; the ``none`` row's ToolsExecutor
+    gets the same formatter in ``run_episode``; ``RecordingRuntime`` records outputs with it. The agent and the
+    gate therefore read the same text.
+    """
+    global TOOL_OUTPUT_FORMAT, _FORMATTER
+    import agentlure.warrant.auditor as warrant_auditor
+
+    previous = TOOL_OUTPUT_FORMAT
+    formatter = ac.adi.tool_output_formatter(fmt) or tool_result_to_str
+    warrant_auditor.tool_result_to_str = formatter
+    TOOL_OUTPUT_FORMAT, _FORMATTER = fmt, formatter
+    return previous
 
 
 # ---------------------------------------------------------------------------------------------
@@ -151,12 +179,28 @@ def _clip(value: Any, n: int) -> Any:
     return value
 
 
-def canon_map(text: str) -> tuple[str, list[int]]:
+_JSON_U = re.compile(r"\\u([0-9a-fA-F]{4})(?:\\u([dD][c-fC-F][0-9a-fA-F]{2}))?")
+
+
+def _json_u_escape(text: str, i: int) -> tuple[str, int] | None:
+    """A JSON ``\\uXXXX`` escape (a surrogate pair joined) at ``text[i]``: (character, length) or None."""
+    m = _JSON_U.match(text, i)
+    if m is None:
+        return None
+    hi = int(m.group(1), 16)
+    if 0xD800 <= hi <= 0xDBFF and m.group(2):
+        return chr(0x10000 + ((hi - 0xD800) << 10) + (int(m.group(2), 16) - 0xDC00)), 12
+    return chr(hi), 6
+
+
+def canon_map(text: str, json_escapes: bool = False) -> tuple[str, list[int]]:
     """Canonical form of ``text`` for span-to-component matching, and each character's source offset.
 
     NFKC and casefold per character; whitespace, quote characters and backslash escapes become
     one space (YAML folds long lines, indents continuations, doubles single quotes and escapes
-    in double-quoted style); leading and trailing spaces are dropped.
+    in double-quoted style); leading and trailing spaces are dropped. ``json_escapes`` (tool outputs
+    rendered by the ADI fork's JSON formatter, ADI amendment) also reads ``\\uXXXX`` as the character
+    it encodes, at the escape's offset; it is off for every SS run.
     """
     out: list[str] = []
     idx: list[int] = []
@@ -165,7 +209,11 @@ def canon_map(text: str) -> tuple[str, list[int]]:
     while i < n:
         ch = text[i]
         step = 1
-        if ch == "\\" and i + 1 < n and text[i + 1] in _ESCAPES:
+        decoded = _json_u_escape(text, i) if json_escapes and ch == "\\" else None
+        if decoded is not None:
+            ch, step = decoded
+            sep = ch.isspace() or ch in _QUOTES or ch == "\\"
+        elif ch == "\\" and i + 1 < n and text[i + 1] in _ESCAPES:
             sep, step = True, 2
         else:
             sep = ch.isspace() or ch in _QUOTES or ch == "\\"
@@ -243,6 +291,8 @@ class CaseAnnotator:
         self._dc = canon_map(str(self.decoy))[0] if self.decoy else ""
         self._cache: dict[str, tuple[list[tuple[str, int, int]], list[tuple[int, int]], list[tuple[int, int]]]] = {}
         self._lock = threading.Lock()
+        # The run's tool-output format (ADI amendment): under "json" the rendered contexts carry JSON escapes.
+        self._fmt = TOOL_OUTPUT_FORMAT
 
     @staticmethod
     def _needles(text: str) -> tuple[str, list[str]]:
@@ -254,7 +304,7 @@ class CaseAnnotator:
             hit = self._cache.get(content)
         if hit is not None:
             return hit
-        canon, idx = canon_map(content)
+        canon, idx = canon_map(content, json_escapes=self._fmt == "json")
         intervals: list[tuple[str, int, int]] = []
         for role, _, (whole, pieces) in self.components:
             found = _find_all(canon, whole)
@@ -299,7 +349,8 @@ class CaseAnnotator:
         if not targets:
             return None, []
         hay = [self.oracle.collapse_ws(o) for o in outputs]
-        detail = [{"role": role, "exposed": any(self.oracle.collapse_ws(text) in h for h in hay)}
+        detail = [{"role": role, "exposed": any(self.oracle.collapse_ws(v) in h for h in hay
+                                                for v in ac.adi.rendered_variants(text, self._fmt))}
                   for role, text in targets]
         return any(d["exposed"] for d in detail), detail
 
@@ -588,7 +639,7 @@ class RecordingRuntime(FunctionsRuntime):
                                "error": f"{type(exc).__name__}: {exc}"[:200], "output": "", "order": order})
             raise
         try:
-            text = tool_result_to_str(result) if error is None else ""
+            text = _FORMATTER(result) if error is None else ""   # the run's formatter (stock unless json)
         except Exception:  # noqa: BLE001
             text = str(result)
         self.calls.append({"function": function, "args": dict(kwargs), "success": error is None,
@@ -759,7 +810,16 @@ def run_episode(ep: Mapping[str, Any], row: str, *, bench: CaseAgentDojo, sessio
                                    context=setup.context, trace_dir=trace_dir, annotator=annot, order=order)
         tap = TapPipeline(warrant, warrant, order)
     elif row == "none":
-        tap = TapPipeline(undefended_agent(model=model, system_prompt=setup.model_prompt, client=client), None, order)
+        agent = undefended_agent(model=model, system_prompt=setup.model_prompt, client=client)
+        if TOOL_OUTPUT_FORMAT != "yaml":  # the none row renders tool outputs as Warrant does (ADI amendment)
+            from agentdojo.agent_pipeline.tool_execution import ToolsExecutionLoop, ToolsExecutor
+
+            executors = [e for el in agent.elements if isinstance(el, ToolsExecutionLoop)
+                         for e in el.elements if isinstance(e, ToolsExecutor)]
+            if len(executors) != 1:
+                raise ValueError("unexpected undefended_agent layout: expected one ToolsExecutor")
+            executors[0].output_formatter = _FORMATTER
+        tap = TapPipeline(agent, None, order)
     else:
         raise ValueError(f"unknown row {row!r}")
 
@@ -775,7 +835,8 @@ def run_episode(ep: Mapping[str, Any], row: str, *, bench: CaseAgentDojo, sessio
     x = o["attacker_value"]
     post_adds: bool | None = None
     if tap.pre_json is not None and tap.env is not None:
-        post_adds = tap.env.model_dump_json().count(x) > tap.pre_json.count(x)
+        needle = ac.adi.state_needle(x)  # X as it appears in a JSON dump (equal to X for every SS value)
+        post_adds = tap.env.model_dump_json().count(needle) > tap.pre_json.count(needle)
     verdict = oracle.classify_outcome(
         o["target"], o["legitimate_set"], x, o.get("decoy_value"), calls, utility,
         authority_args=o["authority_args"], run_error=error is not None,
@@ -783,7 +844,8 @@ def run_episode(ep: Mapping[str, Any], row: str, *, bench: CaseAgentDojo, sessio
 
     outputs = [c["output"] for a in tap.attempts for c in a["runtime_calls"] if c["success"]]
     exposed, exposure_detail = annot.exposure(outputs)
-    x_in_output = any(oracle.contains_value(t, x) for t in outputs)  # diagnostic: trivially true for pre-existing X
+    # diagnostic: trivially true for pre-existing X; under json also the JSON-unescaped view (m1; yaml unchanged)
+    x_in_output = ac.adi.value_in_outputs(oracle.contains_value, outputs, x, TOOL_OUTPUT_FORMAT)
 
     proposals = [c for c in calls if annot.carries_x(c)]
     call_records = list(warrant.call_records) if warrant else []
@@ -890,9 +952,13 @@ def code_hashes() -> dict[str, str]:
 def config_basis(row: str, session: WireSession, case_meta: Mapping[str, Any],
                  oracle_info: Mapping[str, str]) -> dict[str, Any]:
     versions = {k: v for k, v in aa._versions().items() if k != "python"}
-    return {"adapter": GATE_VERSION, "benchmark": "agentdojo-cases", "suite_version": AGENTDOJO_SUITE_VERSION,
-            "row": row, "policy": session.policy.identity(), "case_file_sha256": case_meta["content_sha256"],
-            "oracle_sha256": oracle_info["sha256_lf"], "code_sha256_lf": code_hashes(), "versions": versions}
+    basis = {"adapter": GATE_VERSION, "benchmark": "agentdojo-cases", "suite_version": AGENTDOJO_SUITE_VERSION,
+             "row": row, "policy": session.policy.identity(), "case_file_sha256": case_meta["content_sha256"],
+             "oracle_sha256": oracle_info["sha256_lf"], "code_sha256_lf": code_hashes(), "versions": versions}
+    if TOOL_OUTPUT_FORMAT != "yaml":  # ADI amendment: a resume never mixes formatter code (SS bases are unchanged)
+        compat = HERE.parent / "common" / "adi_compat.py"
+        basis["tool_output_format"] = {"format": TOOL_OUTPUT_FORMAT, "adi_compat_sha256_lf": ac.sha256_text_lf(compat)}
+    return basis
 
 
 def config_shas(rows: Sequence[str], session: WireSession, case_meta: Mapping[str, Any],
@@ -930,6 +996,8 @@ def run_cases(episodes: Sequence[Mapping[str, Any]], rows: Sequence[str], out: P
         record["adapter"] = {"key": ep["episode_id"], "row": row, "stage": session.policy.stage,
                              "config_sha": shas[row], "valid": valid, "invalid_reason": reason,
                              **{k: v for k, v in ctx.as_dict().items() if k not in ("sample_id", "row")}}
+        if "tool_output_format" in case_meta:  # declared by the (ADI-derived) case file
+            record["tool_output_format"] = case_meta["tool_output_format"]
         store.write(row, record, valid)
         return valid
 

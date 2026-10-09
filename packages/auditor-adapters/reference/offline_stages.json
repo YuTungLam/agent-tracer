@@ -97,6 +97,23 @@
         "{out}/reference-agentdojo-logs"
       ],
       "model_requests": 0
+    },
+    "REF-H2-ADI-S2": {
+      "description": "Amendment authority-auditor-pilot-v1-deepseek.1: the offline reference rows of D33 (origin rule and join only; NeuroTaint is not in the amendment's D33) over the h2 ADI-S2 traces (ADI-derived case file, seed family ADI, arms ATTACK and CLEAN; stratum ADI, never pooled with SS). The case file's tool_output_format is honoured by the native replays (json = the ADI fork's formatter); the recorded traces already hold the runner's rendering. Post-process with common/postprocess_gate_rows.py --adapter reference: the ADI family is its own group. The carrier labellings are still tagged trivial_on_SS (content-derived carrier) and left out of the summaries.",
+      "argv": [
+        "{lab_python}",
+        "run_reference.py",
+        "--case-file",
+        "{cases}",
+        "--h2-run",
+        "{h2_run}",
+        "--auditors",
+        "origin,join",
+        "--out-dir",
+        "{out}/reference-h2-adi-s2"
+      ],
+      "model_requests": 0,
+      "amendment": "authority-auditor-pilot-v1-deepseek.1"
     }
   }
 }

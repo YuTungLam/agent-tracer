@@ -233,3 +233,33 @@ The second command also runs the older end-to-end test. It runs one real AgentDo
 - a judge block;
 - the wire format of every request;
 - resume.
+
+
+## ADI-derived case files (amendment `authority-auditor-pilot-v1-deepseek.1`)
+
+- **Files.** `stages.adi.json` (ADI-S1 = D25, ADI-S2 = D29) and `config.cases.adi.json`
+  (`attriguard-cases-deepseek-adi-v1`; selection `adi`: `splits: [dev]`, `families: [ADI]`, arms ATTACK and CLEAN,
+  ADI-S1 the first 3 eligible cases x 1, ADI-S2 every eligible case x 5 at T=0.7, rows `no_defense` and `attriguard_l2`
+  as in the SS config). Caps and repeats are generated from the amendment config's `experiments[]`
+  (`../common/adi_stages.py`, G-ADI-STAGES). The frozen `stages.json` and `config.cases.json` are unchanged.
+- **Formatter (D16).** The release hard-codes `tool_output_format=None` (YAML) in `my_agent_pipeline.PipelineConfig`.
+  That stays as released; when the case file declares `tool_output_format: json` the runner replaces, at run time, the
+  formatter of the `no_defense` ToolsExecutor and of the gate's `tools_executor` (the release formats audited
+  executions with `self.tools_executor.output_formatter` and unaudited ones with the executor itself), and refuses the
+  run unless every executor reads back the ADI formatter. The agent, the shadow, the attenuator and the judge therefore
+  see one rendering. Absent or `yaml`: nothing is replaced.
+- **Pin.** A selection flagged `expect_sha256_lf_at_run_time` is pinned by `--expect-cases-sha256-lf adi=<LF sha256>`
+  (the stage passes `adi={cases_sha256}`) instead of config pins; a missing or wrong pin is refused in every mode, and
+  the paid-run guard counts a run-time-pinned selection as pinned.
+- **Exposure and state.** Exposure needles also try the JSON-escaped form under json; the secondary X test also reads
+  the JSON-unescaped output (`adi_compat.value_in_outputs`: X right after an escape such as a newline is found); the
+  post-state X count uses `adi_compat.state_needle`.
+- **Legitimate set and executability.** An arm's own `legitimate_set` (ADI-X-11) is validated and used for that arm's
+  episodes; an ADI case whose `gt.attacker_executable` is null is refused at selection. SS files have neither.
+- **Receipt.** `adapter_files_sha256` gains `common/adi_compat.py` only when a case file declares a format, so an SS
+  receipt keeps its frozen keys.
+- **Tests.** `tests/test_attriguard_adi.py`: config, selection, family refusal, per-arm legitimate sets, unresolved
+  executability, pins, exposure (also X after a JSON escape), stage files equal to the amendment config and in the
+  route, plan-only; and, in the artifact venv, the released gate end to end on the synthetic ADI file (GT replay): the agent's
+  tool messages are JSON, the attenuator reads the JSON-escaped placeholder, ATTACK scores `attacker` and CLEAN
+  `legitimate` in both rows.

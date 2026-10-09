@@ -31,6 +31,11 @@ as the undefended H2 runner). Two modes:
 ``--plan-only`` makes no request. It is launched for real only through
 ``common/deepseek_route.py run-stage`` and never reads a ``.env`` or a key.
 Saved benchmark text and model output are untrusted data.
+
+ADI-derived case files (ADI amendment; ``stages.adi.json`` with ``melon_h2_config.adi.json``): the
+child passes the case file's ``tool_output_format`` to ``build_runtime``, so the agent and MELON (original
+and masked runs read the same tool messages) see the same rendering; ``--expect-content-sha256`` pins the
+file by its LF SHA-256 before anything is planned.
 """
 
 from __future__ import annotations
@@ -307,6 +312,9 @@ def _child_episode(args: argparse.Namespace, plan: dict[str, Any], episode: dict
     if _sha256_file(case_path) != plan["case_file"]["sha256"]:
         raise RuntimeError("case file changed since the plan was written")
     case_file = json.loads(case_path.read_text(encoding="utf-8"))
+    import h2_core
+
+    tool_output_format = h2_core.tool_output_format(case_file)  # yaml unless the (ADI) case file declares json
     manifest_path = out_dir / CODE_MANIFEST_NAME
     if not manifest_path.is_file():
         raise RuntimeError(f"no {CODE_MANIFEST_NAME} in the out dir (start episodes through the stage driver)")
@@ -346,7 +354,8 @@ def _child_episode(args: argparse.Namespace, plan: dict[str, Any], episode: dict
 
     ctx = run_h2._Context()
     ctx.episode_id = episode["episode_id"]
-    rt = run_h2.build_runtime(config, stage, base_url=base_url, token=token, out_dir=out_dir, ctx=ctx)
+    rt = run_h2.build_runtime(config, stage, base_url=base_url, token=token, out_dir=out_dir, ctx=ctx,
+                              tool_output_format=tool_output_format)
     llm = rt["llm"]
     recorder = melon_port.MelonRecorder(stats_source=lambda: llm.stats)
 
@@ -477,7 +486,8 @@ def _child_episode(args: argparse.Namespace, plan: dict[str, Any], episode: dict
                                             target=episode["target"], legitimate_set=legit)
         exposure = mc.exposure_pre_gate(recorder.steps, calls, recorder.tool_outputs_seen,
                                         arm_text=_arm_text(case_file, episode),
-                                        attacker_value=episode["attacker_value"], contains_value=contains_value)
+                                        attacker_value=episode["attacker_value"], contains_value=contains_value,
+                                        tool_output_format=tool_output_format)
         # Cross-check: the typed oracle on the gate's own view of the executed calls must agree with the
         # H2 record (both read every attempt, including one salvaged after an error).
         mine = classify_outcome(
@@ -651,6 +661,13 @@ def run_stage(args: argparse.Namespace) -> int:
             return EXIT_CONFIG
     try:
         case_file, planned = plan_stage(config, args.stage, Path(args.cases))
+        # ADI stages (ADI amendment) pin the case file by its LF sha256 and honour its tool_output_format.
+        case_lf = hc.adi.check_pin(Path(args.cases), args.expect_content_sha256) if args.expect_content_sha256 else None
+        fmt, declared = hc.tool_output_format(case_file), hc.declared_tool_output_format(case_file)
+        fixed = (config.get("agent") or {}).get("tool_output_format")
+        if fixed in hc.adi.TOOL_OUTPUT_FORMATS and fixed != fmt:
+            raise ValueError(f"config {config.get('config_id')} fixes tool_output_format {fixed!r}, the case file's is "
+                             f"{fmt!r} (use melon_h2_config.adi.json)")
     except (ValueError, hc.H2RunError) as exc:
         print(f"config error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
@@ -683,6 +700,11 @@ def run_stage(args: argparse.Namespace) -> int:
         "counts": hc.count_arms(planned),
         "episodes": planned,
     }
+    # Recorded only when declared or pinned, so an SS plan is unchanged.
+    if case_lf is not None or declared is not None:
+        plan_doc["case_file"]["sha256_lf"] = case_lf or hc.sha256_text_lf(Path(args.cases))
+    if declared is not None:
+        plan_doc["tool_output_format"] = hc.adi.formatter_record(fmt, declared)
     _write_json(out_dir / "episode_plan.json", plan_doc)
     print(json.dumps({"stage": args.stage, "counts": plan_doc["counts"], "plan_digest": digest, **contract}))
     if args.plan_only:
@@ -736,6 +758,8 @@ def run_stage(args: argparse.Namespace) -> int:
         "resumed_from": [str(p) for p in args.resume_from], "skipped_as_started_before": 0,
         "deviations": config.get("deviations", []), "children": [],
     }
+    if declared is not None:
+        receipt["tool_output_format"] = plan_doc["tool_output_format"]
     started_before = {r["episode_id"] for r in prior}
     episodes_path = out_dir / "episodes.jsonl"
     env = child_env(dict(os.environ))
@@ -833,6 +857,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--episode-timeout", type=float, default=1800.0)
     parser.add_argument("--max-embedding-requests", type=int, default=400,
                         help="per-episode cap on substitute-embedder calls (declared deviation; the artifact has none)")
+    parser.add_argument("--expect-content-sha256", action="append", default=[],
+                        help="refuse unless the case file's LF-normalised SHA-256 equals this (the ADI stages pass "
+                             "{cases_sha256}); repeatable, every value must match")
     parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--episode-id", default=None, help=argparse.SUPPRESS)
     return parser

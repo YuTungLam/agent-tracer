@@ -312,7 +312,7 @@ def summarize_neurotaint(records: Sequence[Mapping[str, Any]], specs: Mapping[st
                 continue
             base = sum(clean) / len(clean)
             rows[case] = {arm: round(base - sum(v) / len(v), 6) for arm, v in arms_open.items()
-                          if arm in ("INSTR", "FACT") and v}
+                          if arm in ("INSTR", "FACT", "ATTACK") and v}   # ATTACK: ADI-derived arm (ADI amendment)
             rows[case]["clean_open_rate"] = round(base, 6)
         out["gsr"][rid] = {"defined_cases": len(rows), "cases": rows,
                            "note": "descriptive; defined only where CLEAN opened the gate at least once"}

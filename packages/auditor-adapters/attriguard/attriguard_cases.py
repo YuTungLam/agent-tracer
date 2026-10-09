@@ -20,6 +20,11 @@ neither the artifact nor AgentDojo:
 * the per-episode gate funnel and the stage summary (D1 approval, routes, AG-H1 / AG-H2, false
   blocks, judge logprobs, request-ceiling hits).
 
+ADI-derived case files (ADI amendment; ``config.cases.adi.json``): a top-level ``tool_output_format``
+is validated (absent = yaml), a selection never mixes seed family ADI with another family, and a selection
+flagged ``expect_sha256_lf_at_run_time`` is pinned by the run-time ``--expect-cases-sha256-lf`` instead of
+config pins. The runner installs the declared formatter (README D16).
+
 Saved benchmark text and model output are untrusted data; nothing here interprets them.
 """
 
@@ -47,8 +52,10 @@ SCHEMA_SUMMARY = "attriguard-case-summary/v2"
 SUITES = ("workspace", "travel", "banking", "slack")
 OUTCOMES = ("attacker", "other", "legitimate", "no_call", "task_failure")
 PIN_KEYS = ("expect_config_ids", "expect_cases_digests", "expect_config_sha256s", "expect_content_sha256s")
+# ADI stages (ADI amendment) pin their file at run time: --expect-cases-sha256-lf NAME=<LF sha256>.
+RUNTIME_PIN_KEY = "expect_sha256_lf_at_run_time"
 SELECTION_KEYS = frozenset({
-    "required", *PIN_KEYS, "require_gt_validated", "require_invariants", "splits", "families",
+    "required", *PIN_KEYS, RUNTIME_PIN_KEY, "require_gt_validated", "require_invariants", "splits", "families",
     "value_kinds", "case_ids", "arms", "max_arms", "max_cases", "note",
 })
 GATE_KEYS = ("attenuation_level", "survival_mode", "skip_empty_tool_results_audit", "debug", "max_iters")
@@ -68,6 +75,23 @@ UNSCORED_STATUSES = ("aborted", "stimulus_error")
 
 class CaseFileError(ValueError):
     """A case file, stage config or selection does not satisfy the common contract."""
+
+
+def load_adi_compat() -> ModuleType:
+    """``common/adi_compat.py`` (ADI-derived case files, ADI amendment), loaded by path (stdlib only)."""
+    if "adi_compat" in sys.modules:
+        return sys.modules["adi_compat"]
+    path = Path(__file__).resolve().parent.parent / "common" / "adi_compat.py"
+    spec = importlib.util.spec_from_file_location("adi_compat", path)
+    if spec is None or spec.loader is None:
+        raise CaseFileError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["adi_compat"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+adi = load_adi_compat()
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -147,6 +171,10 @@ def validate_case_file(doc: Mapping[str, Any]) -> None:
     emitted = doc.get("arms_emitted")
     if not _is_str_list(emitted) or not emitted:
         raise CaseFileError("case file needs arms_emitted (list of arm names)")
+    try:  # top-level tool_output_format (ADI-derived files): absent = yaml, else "yaml" or "json"
+        adi.tool_output_format(doc)
+    except adi.CaseFormatError as exc:
+        raise CaseFileError(str(exc)) from None
     seen: set[str] = set()
     for i, case in enumerate(cases):
         where = f"case[{i}]"
@@ -191,6 +219,10 @@ def validate_case_file(doc: Mapping[str, Any]) -> None:
             needles = spec.get("exposure_needles")
             if needles is not None and not (_is_str_list(needles) and all(n.strip() for n in needles)):
                 raise CaseFileError(f"{where}/{arm}: exposure_needles must be a list of non-empty strings")
+            try:  # ADI-X-11: an optional per-arm legitimate set (absent in every SS file)
+                adi.arm_legitimate_set(case, arm)
+            except adi.CaseFormatError as exc:
+                raise CaseFileError(str(exc)) from None
         invariants = case.get("invariants")
         if invariants is not None and not isinstance(invariants, dict):
             raise CaseFileError(f"{where}: invariants must be an object")
@@ -209,9 +241,12 @@ def load_case_file(path: Path) -> tuple[dict[str, Any], str]:
 
 def case_file_identity(doc: Mapping[str, Any]) -> dict[str, Any]:
     """What a selection may pin. ``content_sha256`` covers every byte of meaning (payloads included)."""
-    return {"config_id": doc.get("config_id"), "cases_digest": doc.get("cases_digest"),
-            "config_sha256": doc.get("config_sha256"), "content_sha256": canonical_sha256(doc),
-            "gt_validated": doc.get("gt_validated")}
+    ident = {"config_id": doc.get("config_id"), "cases_digest": doc.get("cases_digest"),
+             "config_sha256": doc.get("config_sha256"), "content_sha256": canonical_sha256(doc),
+             "gt_validated": doc.get("gt_validated")}
+    if "tool_output_format" in doc:  # declared (ADI-derived files); SS identities are unchanged
+        ident["tool_output_format"] = adi.tool_output_format(doc)
+    return ident
 
 
 def check_episode_vectors(episodes: Iterable[Mapping[str, Any]], vectors_by_suite: Mapping[str, Iterable[str]]) -> list[str]:
@@ -334,11 +369,38 @@ def load_stage_config(path: Path) -> tuple[dict[str, Any], str]:
     return config, sha256_bytes(raw)
 
 
-def unpinned_selections(config: Mapping[str, Any], stage_name: str) -> list[str]:
-    """Selections of a stage that do not pin cases_digest, config_sha256 and content_sha256."""
+def unpinned_selections(config: Mapping[str, Any], stage_name: str, runtime_pinned: Iterable[str] = ()) -> list[str]:
+    """Selections of a stage that do not pin cases_digest, config_sha256 and content_sha256 in the config,
+    and are not a run-time-pinned selection (``expect_sha256_lf_at_run_time``) given its LF pin."""
     sels = ((config.get("stages") or {}).get(stage_name) or {}).get("selections") or {}
+    pinned_now = set(runtime_pinned)
+    keys = ("expect_cases_digests", "expect_config_sha256s", "expect_content_sha256s")
     return sorted(n for n, s in sels.items()
-                  if not all(s.get(k) for k in ("expect_cases_digests", "expect_config_sha256s", "expect_content_sha256s")))
+                  if not all(s.get(k) for k in keys) and not (s.get(RUNTIME_PIN_KEY) and n in pinned_now))
+
+
+def runtime_pin_problems(config: Mapping[str, Any], stage_name: str, case_paths: Mapping[str, Path],
+                         pins: Mapping[str, str]) -> tuple[dict[str, str], list[str]]:
+    """Check the run-time LF pins (ADI amendment). Returns ({selection: LF sha256 of its file}, problems).
+
+    A selection with ``expect_sha256_lf_at_run_time`` that is given a file needs a pin, and every pin must name
+    a given file whose LF sha256 equals it (``common/adi_compat.sha256_lf``)."""
+    sels = ((config.get("stages") or {}).get(stage_name) or {}).get("selections") or {}
+    problems: list[str] = []
+    checked: dict[str, str] = {}
+    for name, sel in sels.items():
+        if sel.get(RUNTIME_PIN_KEY) and name in case_paths and name not in pins:
+            problems.append(f"selection {name} is pinned at run time: pass --expect-cases-sha256-lf {name}=<LF sha256>")
+    for name, want in pins.items():
+        if name not in case_paths:
+            problems.append(f"--expect-cases-sha256-lf {name}=... names no --cases {name}=PATH")
+            continue
+        got = adi.sha256_lf(case_paths[name])
+        if got != str(want).strip().lower():
+            problems.append(f"case file {name} LF sha256 is {got}, the stage expects {want} "
+                            "(this stage is pinned to another file)")
+        checked[name] = got
+    return checked, problems
 
 
 def _match(value: Any, allowed: Any) -> bool:
@@ -390,6 +452,12 @@ def select_cases(doc: Mapping[str, Any], sel: Mapping[str, Any], sel_name: str) 
             raise CaseFileError(f"selection {sel_name}: case_ids not found or not runnable: {missing}")
     if sel.get("max_cases") is not None:
         kept = kept[: int(sel["max_cases"])]
+    try:  # ADI-derived cases are their own group (ADI amendment): never mixed with E0B / E1PRE
+        adi.check_family_mix((c.get("seed_family") for c in kept), f"selection {sel_name}")
+        for case in kept:  # and reach a stage with their executability resolved (m5)
+            adi.require_resolved_executability(case)
+    except adi.CaseFormatError as exc:
+        raise CaseFileError(str(exc)) from None
     for case in kept:
         for arm in arms:
             if arm not in case["arms"]:
@@ -446,6 +514,8 @@ def expand_case_stage(config: Mapping[str, Any], stage_name: str,
                 spec = case["arms"][arm]
                 injections = dict(spec["injections"])
                 carries = spec.get("carries_attacker_value")
+                arm_legit = adi.arm_legitimate_set(case, arm)   # ADI-X-11 (None for every SS arm)
+                legit = arm_legit if arm_legit is not None else list(case["legitimate_set"])
                 for rep in range(repeats):
                     pair_id = f"{sel_name}|{case['case_id']}|{arm}|r{rep}"
                     for row_id in stage["rows"]:
@@ -469,7 +539,7 @@ def expand_case_stage(config: Mapping[str, Any], stage_name: str,
                             "user_task_id": case["user_task_id"],
                             "target": dict(case["target"]),
                             "value_kind": (case.get("target") or {}).get("value_kind"),
-                            "legitimate_set": list(case["legitimate_set"]),
+                            "legitimate_set": list(legit),
                             "attacker_value": case["attacker_value"],
                             "decoy_value": case.get("decoy_value"),
                             "decoy_sentence": case.get("decoy_sentence"),
@@ -622,16 +692,23 @@ def previous_step_cause(tool_messages: Sequence[Mapping[str, Any]]) -> str:
 
 
 def exposure_flags(tool_outputs: Sequence[str], ep: Mapping[str, Any],
-                   contains_value: Callable[[str, str], bool]) -> dict[str, Any]:
+                   contains_value: Callable[[str, str], bool], tool_output_format: str = "yaml") -> dict[str, Any]:
     """Was the arm's planted text seen in a tool output (per output, whitespace-collapsed, as the generator
     checks it)? ``injection_exposed`` is None for an arm without planted text of its own (CLEAN).
-    ``attacker_value_in_tool_output`` is the secondary word-boundary value test (``contains_value``)."""
+    ``attacker_value_in_tool_output`` is the secondary word-boundary value test (``contains_value``).
+    Under ``tool_output_format`` "json" (ADI-derived files) each needle is also tried JSON-escaped, as the ADI
+    fork's formatter renders it; under "yaml" the needles are unchanged."""
     outs = [collapse_ws(o) for o in tool_outputs]
+
+    def variants(text: str) -> list[str]:
+        return [collapse_ws(v) for v in adi.rendered_variants(text, tool_output_format)]
+
     needles = ep.get("exposure_needles")
-    exposed = None if not needles else any(any(n in o for o in outs) for n in needles)
+    exposed = None if not needles else any(any(v in o for o in outs) for n in needles for v in variants(n))
     decoy = ep.get("decoy_sentence")
-    decoy_seen = None if not decoy else any(collapse_ws(decoy) in o for o in outs)
-    x_seen = any(contains_value(o, ep["attacker_value"]) for o in tool_outputs)
+    decoy_seen = None if not decoy else any(v in o for o in outs for v in variants(decoy))
+    # under json also the JSON-unescaped view, so X right after an escape such as a newline is found (m1)
+    x_seen = adi.value_in_outputs(contains_value, tool_outputs, ep["attacker_value"], tool_output_format)
     return {"injection_exposed": exposed, "decoy_exposed": decoy_seen, "attacker_value_in_tool_output": x_seen}
 
 

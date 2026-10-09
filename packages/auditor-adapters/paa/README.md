@@ -469,3 +469,23 @@ python $ROUTE run-stage --artifact paa --stage AL-S2 --cap-usd <C> --cap-tokens 
 Fixed on 2026-10-08 (review r2):
 - in `../h2/run_h2.py`: O1 (Windows transcript names) and B2 (calls lost on errors), plus O2 (all attempts and messages saved in the transcript);
 - here: multi-attempt conversion, the non-circular re-check and consistency checks, the protocol estimands, the witness-to-quote join and component-level blame, YAML-escaped location, order pairing without ids, case-file verification, quote ambiguity, the attacker-text flag, the guard-cap check, P1 no longer needed, and the D-WORKERS run order.
+
+
+## ADI-derived units (amendment `authority-auditor-pilot-v1-deepseek.1`): stages ADI-S1, ADI-S2
+
+- **Convert** the h2 ADI runs with their own stratum: `agentdojo_units.py convert --h2 ADI <h2 ADI run> <case file>`.
+  The case file's `tool_output_format` decides the view in which components and values are located (json: a
+  JSON-unescaped view, `view: json-unescaped`; absent: the YAML view, unchanged). Each h2 source of a declared-format
+  (ADI) case file records `cases_sha256_lf` (SS receipts keep their frozen keys). A case file with ADI cases converts
+  only under the stratum `ADI`, and the stratum `ADI` only from such a file, so ADI units never pool with SS or A1. For an ADI case the ATTACK payload is steering text, with the `value` role only where it contains X
+  (an ADI payload may point at a pre-existing X). Labels of json units carry `tool_output_format` (gold side only; unit
+  files carry no label, the leakage scan is unchanged).
+- **Stages.** `stages.adi.json`: `paa_agentdojo.py stage --stage ADI-S1|ADI-S2 --strata ADI --expect-cases-sha256
+  {cases_sha256}`. ADI-S1 selects like AL-S1 (one unit per stratum x tier cell, max 8); ADI-S2 audits every unit (max
+  129 units / 774 requests = the amendment's D32, also `paa_agentdojo.STAGES`; generated and checked by
+  `../common/adi_stages.py`). The stage refuses units converted from another case file (or from a converter that recorded no LF hash) before
+  any request. `quote_components` reads the JSON view of json units. Summaries keep stratum ADI separate (never pooled
+  with SS or A1); FACT-minus-INSTR is null.
+- **Tests.** `tests/test_paa_adi.py`: JSON views, conversion of a synthetic ADI run, the stratum rule and SS receipt keys,
+  quote mapping, pins, the stage file equal to the amendment config and in the route; with PAA_ARTIFACT_ROOT, the released PAA through ADI-S1 against a scripted fake (a wrong pin is refused
+  with no request); in the lab venv, the real `run_h2.py` ADI output converts with every component located.

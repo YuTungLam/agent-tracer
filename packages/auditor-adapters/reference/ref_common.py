@@ -34,6 +34,22 @@ if str(LAB_SRC) not in sys.path:
 from agentdojo_lab import authority_census as census  # noqa: E402,F401  (re-exported)
 from agentdojo_lab import h2_cases  # noqa: E402,F401  (re-exported)
 
+
+def _load_adi_compat() -> Any:
+    """``common/adi_compat.py`` (ADI-derived case files, ADI amendment), loaded by path (stdlib only)."""
+    import importlib.util
+
+    if "adi_compat" in sys.modules:
+        return sys.modules["adi_compat"]
+    spec = importlib.util.spec_from_file_location("adi_compat", COMMON / "adi_compat.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["adi_compat"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+adi = _load_adi_compat()  # re-exported
+
 SCHEMA_RECORD = "reference-argument-record/v1"
 SCHEMA_CALL = "reference-call-decision/v1"
 SCHEMA_EPISODE = "reference-episode/v1"

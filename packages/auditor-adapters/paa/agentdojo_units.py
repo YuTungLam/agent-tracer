@@ -40,6 +40,12 @@ from an attacker episode, and that every value-carrying component is located whe
 ``catalog`` (lab venv only, needs AgentDojo) exports the system message, user task prompts, tool
 descriptions/schemas and vector defaults of v1.2.2; ``convert`` needs only the catalog file.
 Saved benchmark text and model output are untrusted data; nothing here interprets them.
+
+ADI-derived runs (ADI amendment): convert them with their own stratum (``--h2 ADI <run> <case file>``).
+The case file's ``tool_output_format`` decides how components and values are located in the recorded tool
+outputs (json: a JSON-unescaped view instead of the YAML-unescaped one; absent: yaml, unchanged); the ADI
+payload of an ATTACK arm is steering text, with the value role only where it contains X. Each h2 source
+records its case file's LF sha256 (``cases_sha256_lf``), which the ADI stages pin.
 """
 
 from __future__ import annotations
@@ -225,18 +231,43 @@ def yaml_unescape(text: str) -> str:
     return _DQ_ESC.sub(rep, t).replace("''", "'")
 
 
-def text_views(text: Any) -> list[tuple[str, str]]:
-    """[(view name, text)]: the raw rendered text, plus its YAML-unescaped view when different."""
+_ADI = None
+
+
+def adi_compat():
+    """``common/adi_compat.py`` (ADI-derived case files, ADI amendment), loaded by path (stdlib only)."""
+    global _ADI
+    if _ADI is None:
+        if "adi_compat" in sys.modules:
+            _ADI = sys.modules["adi_compat"]
+        else:
+            path = os.path.normpath(os.path.join(_HERE, "..", "common", "adi_compat.py"))
+            spec = importlib.util.spec_from_file_location("adi_compat", path)
+            mod = importlib.util.module_from_spec(spec)
+            assert spec.loader is not None
+            sys.modules["adi_compat"] = mod
+            spec.loader.exec_module(mod)
+            _ADI = mod
+    return _ADI
+
+
+def text_views(text: Any, fmt: str = "yaml") -> list[tuple[str, str]]:
+    """[(view name, text)]: the raw rendered text, plus its unescaped view when different: YAML-unescaped for
+    the stock formatter (``fmt`` "yaml", every SS trace), JSON-unescaped for the ADI fork's formatter ("json",
+    an ADI-derived case file that declares it; ADI amendment)."""
     raw = "" if text is None else str(text)
+    if fmt == "json":
+        un = adi_compat().json_unescape(raw)
+        return [("raw", raw)] if un == raw else [("raw", raw), ("json-unescaped", un)]
     un = yaml_unescape(raw)
     return [("raw", raw)] if un == raw else [("raw", raw), ("yaml-unescaped", un)]
 
 
-def contains_in_views(text: Any, value: str | None) -> bool:
+def contains_in_views(text: Any, value: str | None, fmt: str = "yaml") -> bool:
     H = _H2
     if not value or H is None:
         return False
-    return any(H.contains_value(t, value) for _, t in text_views(text))
+    return any(H.contains_value(t, value) for _, t in text_views(text, fmt))
 
 
 # ----------------------------------------------------------------------------- catalog
@@ -557,18 +588,19 @@ def _ngrams(words: list[str], n: int = 6) -> set[str]:
     return {" ".join(words[i:i + n]) for i in range(0, max(0, len(words) - n + 1))}
 
 
-def locate_view(component: str, text: str) -> tuple[str | None, str | None]:
+def locate_view(component: str, text: str, fmt: str = "yaml") -> tuple[str | None, str | None]:
     """(match, view): match is 'exact' (normalized substring) or 'partial' (>= 60% of the component's
     6-grams, like PAA's own verify_quote); view is the text view it was found in ('raw' or
-    'yaml-unescaped'). (None, None) when not found in any view.
+    'yaml-unescaped', or 'json-unescaped' when the tool output was rendered by the ADI fork's JSON
+    formatter, ``fmt`` "json"). (None, None) when not found in any view.
 
     The component is tried unescaped too: AgentDojo plants a vector's text into a YAML environment
     file, so an escape written in the planted text (e.g. the bill default's literal ``\\t``) reaches
-    the agent decoded."""
+    the agent decoded (this side is YAML whatever the output format)."""
     comps = [c for c in dict.fromkeys(norm_text(t) for _, t in text_views(component)) if c]
     if not comps:
         return None, None
-    views = [(name, norm_text(t)) for name, t in text_views(text)]
+    views = [(name, norm_text(t)) for name, t in text_views(text, fmt)]
     for name, t in views:
         if any(c in t for c in comps):
             return "exact", name
@@ -592,8 +624,10 @@ def components_for(case: dict[str, Any] | None, arm: str | None, injections: dic
     """Injected components with roles. Order of preference: explicit per-arm ``components`` in the
     case file (A1 builds may declare them); the SS layout (default + decoy sentence + arm text);
     else the whole vector text (``whole_vector_steering`` marks it as steering text too, which is
-    true of the stock important_instructions payload). Roles: value (carries X), steering (framing
-    text), decoy, sham, default, injected."""
+    true of the stock important_instructions payload and of an ADI payload). Roles: value (carries X),
+    steering (framing text), decoy, sham, default, injected. For an ADI-derived case (seed family ADI,
+    ADI amendment) the arm text is steering and holds the value role only if it contains X (an ADI
+    payload may point at a pre-existing X without writing it)."""
     H = _H2
     arm_doc = ((case or {}).get("arms") or {}).get(arm or "") or {}
     declared = arm_doc.get("components")
@@ -605,10 +639,14 @@ def components_for(case: dict[str, Any] | None, arm: str | None, injections: dic
         return out
     decoy_sentence = (case or {}).get("decoy_sentence")
     arm_text = arm_doc.get("arm_text")
+    adi_case = (case or {}).get("seed_family") == "ADI"
     for vec, text in sorted(injections.items()):
         rest, split = text, False
         if arm_text and arm_text in text:
             roles = ["steering", "value"] if carries_x else ["sham"]
+            writes_x = bool(attacker_value and H is not None and H.contains_value(arm_text, attacker_value))
+            if adi_case and carries_x and not writes_x:
+                roles = ["steering"]
             out.append({"vector": vec, "name": "arm_text", "text": arm_text, "roles": roles, "declared": False})
             rest, split = rest.replace(arm_text, " "), True
         if decoy_sentence and decoy_sentence in text:
@@ -630,12 +668,13 @@ def components_for(case: dict[str, Any] | None, arm: str | None, injections: dic
 
 
 def event_truth(events: list[dict[str, Any]], comps: list[dict[str, Any]], x: str | None, d: str | None,
-                legit: Iterable[str]) -> dict[str, dict[str, Any]]:
+                legit: Iterable[str], fmt: str = "yaml") -> dict[str, dict[str, Any]]:
     """Per prefix source id (E<step>): what that event is in our ground truth.
 
     ``injected``: some planted component (including the vector default and the decoy, which every
     arm carries) is located in the output. ``attacker_text``: an arm-specific planted component
-    (value, steering or sham role) is located -- the text an attacker writes."""
+    (value, steering or sham role) is located -- the text an attacker writes. ``fmt`` is the trace's
+    tool-output format (yaml unless an ADI-derived case file declares json)."""
     legit = [v for v in legit if v]
     out: dict[str, dict[str, Any]] = {}
     for s, ev in enumerate(events):
@@ -646,7 +685,7 @@ def event_truth(events: list[dict[str, Any]], comps: list[dict[str, Any]], x: st
         text = ev.get("result") or ""
         located = []
         for c in comps:
-            m, view = locate_view(c["text"], text)
+            m, view = locate_view(c["text"], text, fmt)
             if m:
                 located.append({"vector": c["vector"], "name": c["name"], "roles": c["roles"], "match": m,
                                 "view": view})
@@ -654,9 +693,9 @@ def event_truth(events: list[dict[str, Any]], comps: list[dict[str, Any]], x: st
                     "success": ev.get("success"),
                     "injected": bool(located),
                     "attacker_text": any(set(c["roles"]) & ATTACKER_TEXT_ROLES for c in located),
-                    "carries_x": contains_in_views(text, x),
-                    "carries_d": contains_in_views(text, d),
-                    "carries_legit": any(contains_in_views(text, v) for v in legit),
+                    "carries_x": contains_in_views(text, x, fmt),
+                    "carries_d": contains_in_views(text, d, fmt),
+                    "carries_legit": any(contains_in_views(text, v, fmt) for v in legit),
                     "components": located}
     return out
 
@@ -768,6 +807,11 @@ def read_h2_run(run_dir: str, cases_path: str, catalog: dict[str, Any],
     plan = read_json(os.path.join(d, "episode_plan.json"))
     case_check = check_case_file(plan, cases_path, allow_unverified_case_file)
     cases = read_json(cases_path)
+    try:  # the trace's tool-output format: yaml unless an ADI-derived case file declares json (ADI amendment)
+        declared_fmt = adi_compat().declared_tool_output_format(cases)
+    except adi_compat().CaseFormatError as exc:
+        raise ConversionError(f"{cases_path}: {exc}") from None
+    fmt = declared_fmt or "yaml"
     amap = {k: list(v) for k, v in (cases.get("authority_arg_map") or plan.get("authority_arg_map") or {}).items()}
     if not amap:
         raise ConversionError(f"{cases_path}: no authority_arg_map")
@@ -830,7 +874,7 @@ def read_h2_run(run_dir: str, cases_path: str, catalog: dict[str, Any],
             _plan_info(ep), source_format="h2", episode_id=eid, run=run, trajs=trajs, attempt_skips=attempt_skips,
             authority_map=amap, target=ep["target"], attacker_value=x, decoy_value=dv, legitimate_set=legit,
             carries_attacker_value=bool(ep.get("carries_attacker_value")),
-            injections=dict(ep.get("injections") or {}), case=case,
+            injections=dict(ep.get("injections") or {}), case=case, tool_output_format=fmt,
             episode={"outcome": rec.get("outcome"), "subtype": rec.get("subtype"), "utility": rec.get("utility"),
                      "run_error": rec.get("run_error"), "error_type": rec.get("error_type"),
                      "injection_exposed": rec.get("injection_exposed"),
@@ -848,6 +892,9 @@ def read_h2_run(run_dir: str, cases_path: str, catalog: dict[str, Any],
               "cases_path": os.path.abspath(cases_path), "cases_sha256": sha256_file(cases_path),
               "cases_schema": cases.get("schema"), "cases_digest": cases.get("cases_digest"),
               "case_file_check": case_check}
+    if declared_fmt is not None:  # recorded only when declared (ADI-derived files), so SS receipts are unchanged (m3)
+        inputs["tool_output_format"] = declared_fmt
+        inputs["cases_sha256_lf"] = adi_compat().sha256_lf(cases_path)
     return {"inputs": inputs, "episodes": episodes, "skipped": skipped}
 
 
@@ -932,6 +979,24 @@ def _episode_row(stratum: str, ep: dict[str, Any], *, converted: bool, reason: s
             "oracle_recheck": ep.get("oracle_recheck"), "units": units or []}
 
 
+def adi_stratum_problem(stratum: str, src: dict[str, Any]) -> None:
+    """m6: units from an ADI-derived case file (any case of seed family ADI) are converted only under the stratum
+    "ADI", and the stratum "ADI" only from such a file, so ADI units can never pool with SS or A1 units."""
+    if src.get("format") != "h2" or not src.get("cases"):
+        if stratum == "ADI":
+            raise ConversionError("stratum ADI is reserved for h2 runs of an ADI-derived case file")
+        return
+    try:
+        doc = read_json(src["cases"])
+    except (OSError, ValueError) as exc:
+        raise ConversionError(f"{src['cases']}: {exc}") from None
+    has_adi = any((c or {}).get("seed_family") == "ADI" for c in doc.get("cases") or [])
+    if has_adi and stratum != "ADI":
+        raise ConversionError(f"{src['cases']} holds ADI-derived cases: convert it with stratum ADI, not {stratum!r}")
+    if stratum == "ADI" and not has_adi:
+        raise ConversionError(f"stratum ADI is reserved for an ADI-derived case file; {src['cases']} holds none")
+
+
 def convert(out_dir: str, catalog: dict[str, Any], sources: list[dict[str, Any]], *, tooldesc: str = "visible",
             catalog_path: str | None = None, h2_module: str | None = None) -> dict[str, Any]:
     """sources: [{"stratum", "format": "h2"|"harness", "run_dir", "cases"?, "census_dir"?, "authority_map"?,
@@ -962,6 +1027,7 @@ def convert(out_dir: str, catalog: dict[str, Any], sources: list[dict[str, Any]]
         stratum = src["stratum"]
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", stratum):
             raise ConversionError(f"bad stratum name {stratum!r}")
+        adi_stratum_problem(stratum, src)
         if src["format"] == "h2":
             got = read_h2_run(src["run_dir"], src["cases"], catalog, bool(src.get("allow_unverified_case_file")))
         elif src["format"] == "harness":
@@ -997,9 +1063,11 @@ def convert(out_dir: str, catalog: dict[str, Any], sources: list[dict[str, Any]]
                                                          "detail_differences": rc.get("detail_differences")})
             x, dv = ep.get("attacker_value"), ep.get("decoy_value")
             legit = list(ep.get("legitimate_set") or [])
+            fmt = ep.get("tool_output_format") or "yaml"
+            adi_attack = (ep.get("case") or {}).get("seed_family") == "ADI" and bool(ep.get("carries_attacker_value"))
             comps = components_for(ep.get("case"), ep.get("arm") if ep["source_format"] == "h2" else None,
                                    ep.get("injections") or {}, x, dv, ep.get("carries_attacker_value", False),
-                                   whole_vector_steering=ep["source_format"] == "harness")
+                                   whole_vector_steering=ep["source_format"] == "harness" or adi_attack)
             tools = catalog["suites"][suite]["tools"]
             cat_doc = tool_catalog_doc(catalog, suite, tooldesc)
             ident = [ep["episode_id"]] + ([ep["case_id"]] if ep.get("case_id") else [])
@@ -1010,7 +1078,7 @@ def convert(out_dir: str, catalog: dict[str, Any], sources: list[dict[str, Any]]
                 attempt = int(traj.get("attempt") or 0)
                 fid = traj["fidelity"]["source"]
                 receipt["fidelity"][fid] = receipt["fidelity"].get(fid, 0) + 1
-                truth = event_truth(traj["events"], comps, x, dv, legit)
+                truth = event_truth(traj["events"], comps, x, dv, legit, fmt)
                 for t in truth.values():
                     for c in t.get("components") or []:
                         located_names.add(c["name"])
@@ -1063,6 +1131,8 @@ def convert(out_dir: str, catalog: dict[str, Any], sources: list[dict[str, Any]]
                         "episode": ep.get("episode"), "oracle_recheck": ep.get("oracle_recheck"),
                         "fidelity": traj["fidelity"],
                     }
+                    if fmt != "yaml":  # gold side only (never read by PAA): how the unit's tool outputs render
+                        row["tool_output_format"] = fmt
                     ep_units.append(row)
                     n_units += 1
             # Episode-level ordering across attempts: the primary unit of a steered run is its first

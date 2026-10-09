@@ -346,3 +346,24 @@ PYTHONUTF8=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
 
 The 0.1.24 route tests run in the artifact venv, as above. In the lab venv, its end-to-end class is
 skipped.
+
+
+## ADI-derived case files (amendment `authority-auditor-pilot-v1-deepseek.1`): stages ADI-S1, ADI-S2
+
+- **Files.** `stages.adi.json` (ADI-S1 = D24, ADI-S2 = D28) and `melon_h2_config.adi.json`
+  (`melon-h2-gate-deepseek-adi-v1`), mirroring `../h2/config.adi.json` (same selection, ceiling 96 = 2 x 48); caps and
+  repeats generated from the amendment config's `experiments[]` (`../common/adi_stages.py`, G-ADI-STAGES). The frozen `stages.json` and `melon_h2_config.json` are
+  unchanged.
+- **Formatter.** The child passes the case file's `tool_output_format` to `h2/run_h2.build_runtime`, which installs it on
+  the pipeline's ToolsExecutor; MELON reads the tool messages that executor wrote, so the original run and the masked run
+  (`tool_contents` in `pi_detector.py`) see the same text as the agent. No artifact byte changes. The artifact's own
+  few-shot messages stay in its YAML style, as released.
+- **Pin and plan.** `--expect-content-sha256` (stages pass `{cases_sha256}`) is checked before planning; the plan and the
+  receipt record `case_file.sha256_lf` and the formatter only for a declared format or a pin.
+- **Loader.** `validate_injections` accepts an empty injections dict for an arm without X (an ADI CLEAN arm on the stock
+  defaults); `VALUE_ARMS` includes `ATTACK`, so CLEAN gets the false-block fields and ATTACK the approval funnel;
+  `exposure_pre_gate` also tries the JSON-escaped needle under json, and its X test also reads the JSON-unescaped output
+  (X right after an escape such as a newline). The h2 plan it reuses carries each arm's own legitimate set (ADI-X-11).
+- **Tests.** `tests/test_melon_adi.py`: the driver on the synthetic ADI file (JSON seen by the agent and by the masked
+  run; ATTACK approved on the empty-cache path and scored `attacker`; CLEAN `legitimate`; the post-processor's `ADI|all`
+  group), a wrong pin refused before any child, the shipped stage file end to end through the guard.

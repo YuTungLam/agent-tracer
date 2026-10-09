@@ -439,3 +439,36 @@ Outputs under `<out_dir>/adapter/`:
     as blame.
 
 These checks cover plumbing and oracle wiring only. They say nothing about Warrant's behaviour on DeepSeek.
+
+
+## ADI-derived case files (amendment `authority-auditor-pilot-v1-deepseek.1`): stages ADI-S1, ADI-S2
+
+- **Files.** `stages.adi.json`: `run_argus.py cases --splits dev --families ADI --arms ATTACK CLEAN`, rows `none` and
+  `warrant`, `--expect-content-sha256 {cases_sha256}`, ADI-S1 (D26) `--max-cases 3 --repeats 1`, ADI-S2 (D30)
+  `--repeats 2` (1 under the pre-registered Gate S1-ADI fallback), cap $6.50 / 20M / 16,000, at or below the frozen
+  AL-S2-ADI ceiling. Generated from and checked against the amendment config's `experiments[]`
+  (`../common/adi_stages.py`, G-ADI-STAGES). The frozen `stages.json` (with its blocked `AL-S2-ADI` placeholder) is
+  unchanged.
+- **Temperature.** The ADI stages pass no `--agent-temperature`: the agent runs at the artifact's temperature, as the SS
+  rows (PROT X-3; amendment ADI-X-8). The `0.7` choice an earlier draft added to `run_argus.py` is removed again.
+- **Formatter.** `argus_gate.use_tool_output_format(fmt)` (called by `run_argus.py` from the case file's meta) rebinds
+  Warrant's module-level `tool_result_to_str` in `agentlure.warrant.auditor` (runtime adapter; no artifact edit) and the
+  `none` row's ToolsExecutor formatter, and `RecordingRuntime` records outputs with it. Under json, `canon_map` also
+  reads `\uXXXX` escapes (offsets still index the rendered text), and exposure tries the JSON-escaped arm text. The
+  config hash of a json run also covers `common/adi_compat.py`, so a resume never mixes formatter code.
+- **Loader.** `STEERING_ARM` accepts `ATTACK`; `load_case_file` refuses an unknown `tool_output_format`, records the
+  format and families (only for ADI or declared files) and gives each unit the oracle of its arm's own legitimate set
+  when the case gives one (ADI-X-11); `select_episodes` refuses ADI mixed with another family and an ADI case with an
+  unresolved `attacker_executable`; the summary adds `seed_family`, `amendment` and `tool_output_format` for an ADI run
+  (the FACT-INSTR contrast is null). The diagnostic `x_in_output` also reads the JSON-unescaped output under json.
+- **Span granularity (measured, ADI-X-12).** Warrant's segmenter is line-based (`agentlure/warrant/segmentation.py`), and
+  a JSON tool output is one line. The exporter (`../common/adi_export.py`) checks every case on the stock port with the
+  segmenter itself: under JSON the payload and the native X of the slack `get_channels` output fall into one span for
+  slack ut9[0], ut10[0] and ut19[0] (under YAML they are apart); workspace ut35[0] and ut38[2] are separated under both;
+  in the Xatt cases X is not native. For the three slack cases wrong-source blame (EA3) is undefined: the case carries
+  `design.argus_span_separated: false`, and the post-processor leaves its ARGUS attribution items out and counts them in
+  `attribution.argus_blame_undefined_span_shared`. Approval, funnel and false block are reported as for every case.
+- **Tests.** `tests/test_argus_adi.py`: loader, family refusal, per-arm oracles, unresolved executability, `canon_map`
+  on JSON, the gate on the synthetic ADI file with a scripted agent and judge (both rows see JSON; ATTACK `attacker`,
+  CLEAN `legitimate`; artifact temperature), `cases-plan` pinning, the stage file equal to the amendment config, in the
+  route and under the frozen ceiling.

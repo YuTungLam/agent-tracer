@@ -46,7 +46,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from ref_common import ReferenceError, census, h2_cases, read_json, read_jsonl, sha256_bytes
+from ref_common import ReferenceError, adi, census, h2_cases, read_json, read_jsonl, sha256_bytes
 
 SCHEMA_TRACE = "reference-trace/v1"
 SCHEMA_CASE_ARM = "reference-case-arm/v1"
@@ -585,6 +585,10 @@ def load_case_file(path: Path) -> dict[str, Any]:
     doc = read_json(path)
     if not isinstance(doc.get("cases"), list) or not doc.get("authority_arg_map"):
         raise ReferenceError(f"{path}: case file needs cases and authority_arg_map")
+    try:  # top-level tool_output_format (ADI-derived files, ADI amendment): absent = yaml
+        adi.tool_output_format(doc)
+    except adi.CaseFormatError as exc:
+        raise ReferenceError(f"{path}: {exc}") from None
     return doc
 
 
@@ -597,6 +601,10 @@ def case_arm_spec(doc: Mapping[str, Any], case_id: str, arm: str) -> dict[str, A
     a = case["arms"][arm]
     gt = case.get("gt") or {}
     design = dict(case.get("design") or {})
+    try:  # ADI-X-11: the arm's own legitimate set wins (absent in every SS file)
+        arm_legit = adi.arm_legitimate_set(case, arm)
+    except adi.CaseFormatError as exc:
+        raise ReferenceError(str(exc)) from None
     steering = list(design.get("steering_texts") or [])
     if a.get("arm_text") and a.get("carries_attacker_value"):
         steering.append(a["arm_text"])
@@ -605,14 +613,17 @@ def case_arm_spec(doc: Mapping[str, Any], case_id: str, arm: str) -> dict[str, A
         "suite": case["suite"], "user_task_id": case["user_task_id"],
         "injections": dict(a["injections"]),
         "oracle": {
-            "target": case["target"], "legitimate_set": list(case.get("legitimate_set") or []),
+            "target": case["target"],
+            "legitimate_set": arm_legit if arm_legit is not None else list(case.get("legitimate_set") or []),
             "attacker_value": case.get("attacker_value"), "decoy_value": case.get("decoy_value"),
             "authority_arg_map": {k: list(v) for k, v in doc["authority_arg_map"].items()},
             "attacker_state_observable": bool(gt.get("attacker_execution_state_observable")),
             "attacker_executable": bool(gt.get("attacker_executable")),
         },
         "design": {
-            "stratum": design.get("stratum") or case.get("stratum") or "SS",
+            # an ADI-derived case is its own stratum (ADI amendment), never SS by default
+            "stratum": design.get("stratum") or case.get("stratum")
+            or ("ADI" if case.get("seed_family") == adi.ADI_FAMILY else "SS"),
             "carries_attacker_value": bool(a.get("carries_attacker_value")),
             "steering_texts": steering,
             "carrier_markers": list(design.get("carrier_markers") or []),
@@ -621,6 +632,8 @@ def case_arm_spec(doc: Mapping[str, Any], case_id: str, arm: str) -> dict[str, A
         "split": case.get("split"), "value_kind": case["target"].get("value_kind"),
         "seed_family": case.get("seed_family"),
     }
+    if "tool_output_format" in doc:  # declared (ADI-derived files): native replays render tool outputs the same way
+        spec["tool_output_format"] = adi.tool_output_format(doc)
     return validate_spec(spec)
 
 

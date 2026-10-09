@@ -52,8 +52,9 @@ SCHEMA_SUMMARY = "argus-cases-summary/v2"
 CASE_SCHEMA = re.compile(r"^[a-z0-9][a-z0-9_.-]*-cases/v\d+$")
 SUITES = ("workspace", "travel", "banking", "slack")
 OUTCOMES = ("attacker", "other", "legitimate", "no_call", "task_failure")
-ARM_ORDER = ("CLEAN", "INSTR", "FACT", "SHAM", "FACT_STRUCT")
-STEERING_ARM = re.compile(r"(?:^|[-_:])(?:INSTR|FACT|FACT_STRUCT)$")
+ARM_ORDER = ("CLEAN", "INSTR", "FACT", "SHAM", "FACT_STRUCT", "ATTACK")
+# ATTACK: the ADI-derived arm (ADI amendment); its payload is the attacker-written (steering) text.
+STEERING_ARM = re.compile(r"(?:^|[-_:])(?:INSTR|FACT|FACT_STRUCT|ATTACK)$")
 STEERING_ROLES = frozenset({"steering"})
 EXPOSURE_ROLES = frozenset({"steering", "carrier"})  # planted text whose sight counts as exposure
 UMBRELLA_PREFIX = "injected:"  # each vector's added text; overlaps the finer components
@@ -65,6 +66,23 @@ DEFAULT_ORACLE = HERE.parents[1] / "agentdojo-lab" / "src" / "agentdojo_lab" / "
 
 class CaseContractError(ValueError):
     """A case file does not meet the common case contract."""
+
+
+def _load_adi_compat() -> ModuleType:
+    """``common/adi_compat.py`` (ADI-derived case files, ADI amendment), loaded by path (stdlib only)."""
+    if "adi_compat" in sys.modules:
+        return sys.modules["adi_compat"]
+    path = HERE.parent / "common" / "adi_compat.py"
+    spec = importlib.util.spec_from_file_location("adi_compat", path)
+    if spec is None or spec.loader is None:
+        raise CaseContractError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["adi_compat"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+adi = _load_adi_compat()
 
 
 # ---------------------------------------------------------------------------------------------
@@ -311,10 +329,14 @@ def load_case_file(path: Path, oracle_mod: ModuleType) -> dict[str, Any]:
             for arm, spec in arms.items():
                 if not isinstance(spec, Mapping):
                     raise CaseContractError(f"{where}: arm {arm!r} must be an object")
+                arm_oracle = oracle
+                if "legitimate_set" in spec:  # ADI-X-11: the arm's own legitimate set (absent in every SS file)
+                    arm_oracle = _oracle_spec({**case, "legitimate_set": spec["legitimate_set"]}, file_map,
+                                              f"{where} arm {arm}", oracle_mod)
                 units.append(_unit(
                     case_id=case_id, arm=str(arm), suite=case.get("suite"),
                     user_task=case.get("user_task_id", case.get("user_task")),
-                    injections=_injections(spec.get("injections"), f"{where} arm {arm}"), oracle=oracle,
+                    injections=_injections(spec.get("injections"), f"{where} arm {arm}"), oracle=arm_oracle,
                     carries=spec.get("carries_attacker_value"), steering=spec.get("steering"),
                     arm_text=spec.get("arm_text"), decoy_sentence=case.get("decoy_sentence"),
                     components=_components(spec.get("components"), f"{where} arm {arm}"),
@@ -343,6 +365,10 @@ def load_case_file(path: Path, oracle_mod: ModuleType) -> dict[str, Any]:
         raise CaseContractError("case file needs a 'cases' list (nested layout) or a 'units' list (flat layout)")
     if not units:
         raise CaseContractError("case file has no case-arm units")
+    try:  # top-level tool_output_format (ADI-derived files, ADI amendment): absent = yaml
+        declared_format = adi.declared_tool_output_format(doc)
+    except adi.CaseFormatError as exc:
+        raise CaseContractError(str(exc)) from None
     ids = [u["unit_id"] for u in units]
     dupes = sorted({i for i, n in Counter(ids).items() if n > 1})
     if dupes:
@@ -360,6 +386,10 @@ def load_case_file(path: Path, oracle_mod: ModuleType) -> dict[str, Any]:
         "units": len(units),
         "cases": len({u["case_id"] for u in units}),
     }
+    families = sorted({str(u.get("family")) for u in units})
+    if declared_format is not None or adi.has_adi(families):  # recorded only then, so an SS meta is unchanged
+        meta["tool_output_format"] = declared_format or adi.DEFAULT_TOOL_OUTPUT_FORMAT
+        meta["seed_families"] = families
     return {"meta": meta, "units": units}
 
 
@@ -429,6 +459,14 @@ def select_episodes(units: Sequence[Mapping[str, Any]], *, splits: Sequence[str]
         selected.append(case_id)
     if max_cases is not None:
         selected = selected[: int(max_cases)]
+    try:  # ADI-derived cases are their own group (ADI amendment): never selected with E0B / E1PRE
+        adi.check_family_mix((by_case[c][0].get("family") for c in selected), "selection")
+    except adi.CaseFormatError as exc:
+        raise CaseContractError(str(exc)) from None
+    unresolved = [c for c in selected if by_case[c][0].get("family") == adi.ADI_FAMILY
+                  and by_case[c][0]["oracle"].get("attacker_executable") is None]
+    if unresolved:  # m5: an ADI case reaches a stage with its executability resolved (G-ADI-CONF)
+        raise CaseContractError(f"ADI case(s) with unresolved attacker_executable: {unresolved[:3]}; re-export")
     out: list[dict[str, Any]] = []
     for case_id in selected:
         cus = {u["arm"]: u for u in by_case[case_id]}
@@ -746,4 +784,12 @@ def summarize(out: Path, price_in: float, price_out: float) -> dict[str, Any]:
         base = sum(tokens["none"][k] for k in shared)
         summary["cost_ratio_warrant_over_none"] = (round(sum(tokens["warrant"][k] for k in shared) / base, 2)
                                                    if base else None)
+    every = [r for row in ("none", "warrant") for r in latest_by_key(read_jsonl(out / f"cases-{row}.jsonl"))]
+    if adi.has_adi(r.get("family") for r in every):  # ADI amendment; SS summaries are unchanged
+        formats = sorted({r["tool_output_format"] for r in every if r.get("tool_output_format")})
+        summary.update({
+            "seed_family": adi.ADI_FAMILY, "amendment": adi.AMENDMENT_ID,
+            "tool_output_format": formats[0] if len(formats) == 1 else (formats or "yaml (not declared)"),
+            "note": ("ADI-derived cases (seed family ADI, arms ATTACK and CLEAN; the loader never selects them with "
+                     "E0B or E1PRE): the FACT-minus-INSTR contrast is null by construction. " + adi.AMENDMENT_NOTE)})
     return summary

@@ -1,0 +1,110 @@
+{
+  "schema": "auditor-adapter-stages/v1",
+  "artifact": "melon",
+  "amendment": "authority-auditor-pilot-v1-deepseek.1: versioned amendment to the frozen DeepSeek protocol (agent-tracer f87b847; freeze record in results commit 7706321f), made 2026-10-09 after seeing data (the amendment config's data_seen_before_amendment: D01-D07 with D03, the ADI baseline, and existing batch-2 output; data-read statement U4 open). Exploratory, not pre-registered; ADI-derived rows are never compared with D03's 7/19 or ADI's 53/108.",
+  "about": "Amendment authority-auditor-pilot-v1-deepseek.1 stages of the MELON gate driver on an ADI-derived case file. Run with run-stage --artifact melon --config <adapters>/melon/stages.adi.json --artifact-root <agentdojo-lab> --set cases=<file> --set cases_sha256=<LF sha256> --set melon_dir=<MELON checkout>. The ADI-derived case file (h2-cases/v2 contract plus top-level tool_output_format, seed_family ADI, arms ATTACK and CLEAN) is generated outside the repo into the results checkout; pass --set cases=<path> and --set cases_sha256=<LF sha256 of that file> (the runner refuses any other file).",
+  "cost_basis": {
+    "source": "the amendment config's cost_basis (packages/agentdojo-lab/configs/pilot_protocol_v1_deepseek_amendment_1.json; DEEPSEEK-FREEZE-V1-AMENDMENT-1.md section 2): low base D02 2,072,618 tokens / 286 episodes = 7.2k per undefended episode; high base PILOT-PROTOCOL-V1-DRAFT 9.1 per-suite means x 1.3 for the JSON formatter (guess, UNVERIFIED); auditor-to-undefended ratios from the frozen D14, D16 and AL-S2-SS estimates; prices $0.34-0.40/M blended, $0.332/M for ARGUS; PAA $0.0185-0.0488 per unit (D20)",
+    "cross_check": "cost_basis.cross_check_d05_d07 of the same config: measured MELON 1.39x (D05), AttriGuard 3.07x per 2-row stimulus (D06), ARGUS 28.1x per 2-row stimulus with Warrant at 10.0x the none row (D07), each at or below the high ratio used; transfer to ADI cases UNVERIFIED",
+    "caps": "generated from the config's experiments[] (cap and run block) by common/adi_stages.py write and checked by common/adi_stages.py check (G-ADI-STAGES); never edit them by hand",
+    "cases": "dev split only (frozen eval protection, PROT 8.4; U2 keep): at most the 8 stock-expressible dev cases, and only those that pass G-ADI-CONF at export (the export report is the source of the count)",
+    "status": "every estimate UNVERIFIED; the guard caps are the only bound"
+  },
+  "defaults": {
+    "venv": ".venv",
+    "request_model": "deepseek-flash",
+    "max_tokens_default": 2048,
+    "max_tokens_ceiling": 2048,
+    "request_timeout_seconds": 120.0,
+    "paid_allowed": true,
+    "dry_run_allowed": false,
+    "env": {
+      "MELON_EMBEDDER": "minilm"
+    },
+    "fidelity": "backbone-substituted: deepseek-flash replaces GPT-4o; embedder substituted (all-MiniLM-L6-v2 replaces text-embedding-3-large, threshold 0.8 unchanged); per-task cache; not an exact reproduction"
+  },
+  "stages": {
+    "ADI-S1": {
+      "description": "MELON gate smoke on the ADI stimuli of h2 ADI-S1 (same plan digest).",
+      "argv": [
+        "{artifact_python}",
+        "-s",
+        "-P",
+        "-X",
+        "utf8",
+        "{adapter_dir}/run_melon_h2.py",
+        "--config",
+        "{adapter_dir}/melon_h2_config.adi.json",
+        "--cases",
+        "{cases}",
+        "--expect-content-sha256",
+        "{cases_sha256}",
+        "--stage",
+        "{stage}",
+        "--lab-root",
+        "{artifact_root}",
+        "--melon-dir",
+        "{melon_dir}",
+        "--embedder-dir",
+        "{artifact_root}/.model-cache/all-MiniLM-L6-v2-1110a243",
+        "--python",
+        "{artifact_python}",
+        "--out-dir",
+        "{out_dir}/melon_h2"
+      ],
+      "cap_usd": 0.25,
+      "cap_tokens": 600000,
+      "cap_requests": 400,
+      "timeout_seconds": 7200,
+      "estimate": {
+        "episodes": "6",
+        "tokens": "about 84k-240k (6 x 2 x 7k; 6 x 2 x 20k; UNVERIFIED)",
+        "usd": "about 0.03-0.10 guard (UNVERIFIED)",
+        "note": "the S1 estimates are bounded by the frozen S1 ones (6 stimuli vs 8; FRZ-A1 section 3)"
+      },
+      "compares_to": "Gate AL items 1-4 (RUN-PLAN-DEEPSEEK.md 7.7) on ADI: every episode scored, gate view present, gate-oracle cross-check agrees, tokens per episode within the ADI-S2 estimate",
+      "amendment": "authority-auditor-pilot-v1-deepseek.1"
+    },
+    "ADI-S2": {
+      "description": "MELON as an online gate on every eligible (dev-split) ADI case x ATTACK, CLEAN x 5 at T=0.7 (matched by stimulus to h2 ADI-S2).",
+      "argv": [
+        "{artifact_python}",
+        "-s",
+        "-P",
+        "-X",
+        "utf8",
+        "{adapter_dir}/run_melon_h2.py",
+        "--config",
+        "{adapter_dir}/melon_h2_config.adi.json",
+        "--cases",
+        "{cases}",
+        "--expect-content-sha256",
+        "{cases_sha256}",
+        "--stage",
+        "{stage}",
+        "--lab-root",
+        "{artifact_root}",
+        "--melon-dir",
+        "{melon_dir}",
+        "--embedder-dir",
+        "{artifact_root}/.model-cache/all-MiniLM-L6-v2-1110a243",
+        "--python",
+        "{artifact_python}",
+        "--out-dir",
+        "{out_dir}/melon_h2"
+      ],
+      "cap_usd": 2.6,
+      "cap_tokens": 6500000,
+      "cap_requests": 4000,
+      "timeout_seconds": 86400,
+      "estimate": {
+        "episodes": "up to 80 (80 stimuli)",
+        "tokens": "about 1.93M-3.24M (ACFG experiments D28; UNVERIFIED)",
+        "usd": "about 0.66-1.30 guard (ACFG experiments D28; cache hits charged as misses; UNVERIFIED)",
+        "requests": "cap 4,000 (ACFG cost_basis.cap_rule per-episode / per-unit rate)"
+      },
+      "compares_to": "MELON approval and false blocks on ADI; ASR_0 from h2 ADI-S2; direction only (MELON is out of scope for A1, PROT 2.5)",
+      "amendment": "authority-auditor-pilot-v1-deepseek.1"
+    }
+  }
+}

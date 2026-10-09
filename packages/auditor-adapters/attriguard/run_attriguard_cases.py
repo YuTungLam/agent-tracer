@@ -11,8 +11,9 @@ Each episode is one (row, case, arm, repeat). The arm's ``injections`` dict (any
 passed to ``suite.load_and_inject_default_environment``, the user task runs under the row's pipeline
 (``attriguard_l2``: released AttriGuardExecutionLoop, lambda=2, fuzzy survival, skip-empty-audit on;
 ``no_defense``: the released no-defense pipeline; both with the released default YAML tool-output
-format), and the declared authority sink is scored with the typed oracle
-``agentdojo_lab/h2_cases.py: classify_outcome`` (loaded by path), never with an AgentDojo injection-task
+format, unless the case file declares ``tool_output_format`` json: then the ADI fork's formatter is installed
+on both rows at run time, README D16, ADI amendment), and the declared authority sink is scored with the
+typed oracle ``agentdojo_lab/h2_cases.py: classify_outcome`` (loaded by path), never with an AgentDojo injection-task
 security check. Every planned stimulus environment is built once before the first model request; a
 stimulus that fails to build refuses the run and is never scored.
 
@@ -145,6 +146,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--resume-from", action="append", default=[], metavar="ADAPTER_DIR",
                    help="earlier run dir of the SAME stage, config, plan, mode, oracle, adapter, artifact and case "
                         "files; its scored episodes (and their per-call rows) are carried over")
+    p.add_argument("--expect-cases-sha256-lf", action="append", default=[], metavar="NAME=SHA256",
+                   help="run-time pin of the case file of selection NAME by its LF-normalised SHA-256 (the ADI "
+                        "stages pass adi={cases_sha256}; ADI amendment)")
     return p.parse_args(argv)
 
 
@@ -291,19 +295,40 @@ def main(argv: list[str] | None = None) -> int:
         case_docs[name] = doc
         case_meta[name] = {"path": str(path.resolve()), "sha256": digest, "schema": doc.get("schema"),
                            **ac.case_file_identity(doc)}
+    # Run-time LF pins and the tool-output format (ADI-derived files, ADI amendment).
+    pins: dict[str, str] = {}
+    for value in args.expect_cases_sha256_lf:
+        name, sep, want = value.partition("=")
+        if not sep or not want.strip() or name in pins:
+            raise AdapterRefusal(f"refusing: --expect-cases-sha256-lf expects NAME=SHA256 once per name, got {value!r}")
+        pins[name] = want.strip()
+    pinned, pin_problems = ac.runtime_pin_problems(config, args.stage, case_paths, pins)
+    if pin_problems:
+        raise AdapterRefusal("refusing: " + "; ".join(pin_problems))
+    for name, lf in pinned.items():
+        case_meta[name]["sha256_lf"] = lf
+    formats = {name: ac.adi.tool_output_format(doc) for name, doc in case_docs.items()}
+    if len(set(formats.values())) > 1:
+        raise AdapterRefusal(f"refusing: the case files declare different tool_output_format values {formats}; one "
+                             "run renders tool outputs one way")
+    tool_output_format = next(iter(formats.values()), "yaml")
+    declared_format = any("tool_output_format" in doc for doc in case_docs.values())
+    formatter = ac.adi.tool_output_formatter(tool_output_format)
     planned = ac.expand_case_stage(config, args.stage, case_docs)
     if not planned:
         raise AdapterRefusal(f"refusing: stage {args.stage} selects no episode from the given case files")
     digest = ac.plan_digest(planned)
     mode = os.environ.get("AUDITOR_MODE") or ("plan-only" if args.plan_only else "standalone")
     if mode == "deepseek":
-        unpinned = ac.unpinned_selections(config, args.stage)
+        unpinned = ac.unpinned_selections(config, args.stage, runtime_pinned=pinned)
         if unpinned:
             raise AdapterRefusal(f"refusing a paid run: selections {unpinned} of {args.stage} do not pin "
                                  "cases_digest, config_sha256 and content_sha256")
     plan_doc = {"schema": ac.SCHEMA_PLAN, "adapter": ADAPTER_VERSION, "stage": args.stage, "mode": mode,
                 "planned_utc": _utc(), "plan_digest": digest, "config_sha256": config_sha, "case_files": case_meta,
                 "counts": ac.count_plan(planned), "episodes": planned}
+    if declared_format:  # recorded only when a case file declares it, so an SS plan is unchanged
+        plan_doc["tool_output_format"] = ac.adi.formatter_record(tool_output_format, tool_output_format)
     _write_json(out / "plan.json", plan_doc)
     if args.plan_only:
         print(json.dumps({"stage": args.stage, "plan_digest": digest, "counts": plan_doc["counts"]}))
@@ -348,6 +373,9 @@ def main(argv: list[str] | None = None) -> int:
         "resumed_from": [str(Path(p).resolve()) for p in args.resume_from],
         "status": "started",
     }
+    if declared_format:  # declared (ADI) files only, so an SS receipt keeps its frozen keys (m3)
+        receipt["tool_output_format"] = plan_doc["tool_output_format"]
+        receipt["adapter_files_sha256"]["common/adi_compat.py"] = ac.sha256_file(HERE.parent / "common" / "adi_compat.py")
     receipt_path = out / "adapter_receipt.json"
     _write_json(receipt_path, receipt)
 
@@ -473,7 +501,9 @@ def main(argv: list[str] | None = None) -> int:
 
         def __init__(self, *a: Any, **k: Any) -> None:
             super().__init__(*a, **k)
-            self.tools_executor = RecordingToolsExecutor(self.tools_executor.output_formatter)
+            # D16 (ADI amendment): the case file's formatter replaces the released default (YAML) at run time;
+            # the release reads tools_executor.output_formatter for audited and unaudited executions alike.
+            self.tools_executor = RecordingToolsExecutor(formatter or self.tools_executor.output_formatter)
 
         def query(self, query, runtime, env=EmptyEnv(), messages=[], extra_args={}):  # noqa: B006, ANN001
             recorder.begin_gate_query()
@@ -521,6 +551,17 @@ def main(argv: list[str] | None = None) -> int:
             gates[row_id] = actual
         elif gate is not None:
             raise AdapterRefusal(f"row {row_id}: unexpected gate in a no-defense row")
+        if formatter is not None:  # D16: the case file's formatter on every executor of the row (read back)
+            from agentdojo.agent_pipeline.tool_execution import ToolsExecutionLoop
+
+            executors = [gate.tools_executor] if gate is not None else []
+            for element in pipeline.elements:
+                if isinstance(element, ToolsExecutionLoop):
+                    executors += [e for e in element.elements if isinstance(e, ToolsExecutor)]
+            for executor in executors:
+                executor.output_formatter = formatter
+            if not executors or any(e.output_formatter is not formatter for e in executors):
+                raise AdapterRefusal(f"row {row_id}: the {tool_output_format} tool-output formatter is not installed")
         pipelines[row_id] = pipeline
     receipt["gates"] = gates
     receipt["pipeline_names"] = {r: p.name for r, p in pipelines.items()}
@@ -599,8 +640,10 @@ def main(argv: list[str] | None = None) -> int:
                 stack = functions_stack_trace_from_messages(messages)
                 utility = bool(suite._check_user_task_utility(user_task, model_output or [], pre_env, task_env, stack))
             finally:
-                # Tools mutate task_env in place, so the post-state is read even after an error.
-                post_adds_x = task_env.model_dump_json().count(x) > pre_json.count(x)
+                # Tools mutate task_env in place, so the post-state is read even after an error. X is counted as
+                # it appears in a JSON dump (equal to X for every SS value; see common/adi_compat.state_needle).
+                needle = ac.adi.state_needle(x)
+                post_adds_x = task_env.model_dump_json().count(needle) > pre_json.count(needle)
         except BaseException as exc:  # noqa: BLE001 - recorded; the caller decides whether to stop
             if isinstance(exc, KeyboardInterrupt):
                 raise
@@ -669,7 +712,7 @@ def main(argv: list[str] | None = None) -> int:
         record.update({
             "status": status, "run_error": error is not None and status != "aborted", "utility": utility,
             "post_state_adds_attacker": post_adds_x, "attempts": len(attempts),
-            **ac.exposure_flags(tool_outputs, ep, oracle.contains_value),
+            **ac.exposure_flags(tool_outputs, ep, oracle.contains_value, tool_output_format),
             "funnel": ac.episode_funnel(calls, record.get("outcome")),
             "gate_queries": recorder.gate_queries, "attenuated_observations": recorder.observations,
             "instrumentation_anomalies": list(recorder.anomalies),

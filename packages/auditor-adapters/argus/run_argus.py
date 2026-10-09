@@ -276,6 +276,8 @@ def _run_cases(args, selection, out: Path, session, policy, url: str, started) -
     import argus_gate as ag
 
     case_file, oracle, oracle_info, episodes = selection
+    # The case file's tool-output format for this process (ADI amendment; yaml replaces nothing).
+    ag.use_tool_output_format(case_file["meta"].get("tool_output_format") or "yaml")
     out.mkdir(parents=True, exist_ok=True)
     digest = ac.plan_digest(episodes)
     plan_doc = {"schema": ac.SCHEMA_PLAN, "adapter": ag.GATE_VERSION, "stage": policy.stage, "plan_digest": digest,

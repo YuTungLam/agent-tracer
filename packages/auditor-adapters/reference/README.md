@@ -494,3 +494,22 @@ evidence. "Fixtures" are scripted calls, not agent behaviour.
 | m7 | Receipts hash the lab modules and `workspace_policy_v1.yaml` (`lab_code_sha256_lf`) |
 | m8 | PACT citations marked UNVERIFIED |
 | m9 | Empty-list arguments documented (D5) |
+
+
+## 11. ADI-derived case files (amendment `authority-auditor-pilot-v1-deepseek.1`)
+
+- `ref_trace.load_case_file` refuses an unknown `tool_output_format`; `case_arm_spec` gives an ADI case (seed family ADI)
+  the stratum `ADI` (not the SS default), carries the declared `tool_output_format` into the spec, and takes the arm's
+  own `legitimate_set` when the case gives one (ADI-X-11).
+- `native_replay.scripted_trace` renders tool outputs with that format (json = the ADI fork's formatter, as the runners),
+  and the native post-state X count uses `adi_compat.state_needle`. Recorded h2 traces already hold the runner's
+  rendering; value matching decodes JSON scalars as before.
+- The GSR table also reads the `ATTACK` arm. The carrier labellings stay tagged `trivial_on_SS` whenever the carrier is
+  content-derived, ADI included. For the stock-expressible ADI cases that is correct by construction, not a gap: the
+  exporter found native X and the payload in the same ground-truth tool output in every case where X is native, so no
+  source-level carrier is separable and none is declared (`design.carrier_note`). The tag name is kept for the frozen
+  SS outputs.
+- Offline stage `REF-H2-ADI-S2` (`offline_stages.json`, zero model requests): the origin rule and join only, as the
+  amendment's D33; post-process with `--adapter reference` (group `ADI|...`).
+- Tests: `tests/test_reference_adi.py` (spec, per-arm legitimate sets, JSON-rendered scripted traces scored on both arms,
+  the reference rows on a real h2 ADI run and their post-processed `ADI` group).
