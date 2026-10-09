@@ -1,13 +1,13 @@
 # DeepSeek freeze v1, amendment 1: the ADI-derived authority runs (D23–D33)
 
-**Status: PROPOSED 2026-10-09 (not effective; revised the same day for the loaders-review fixes).** This is a
+**Status: EFFECTIVE 2026-10-09 (after-data exploratory amendment; §12 hash record required before paid runs).** This is a
 **VERSIONED AMENDMENT, made after seeing data**:
 `authority-auditor-pilot-v1-deepseek.1`. It amends the run list `DEEPSEEK-FREEZE-V1.md` ("FRZ") and goes with
 `packages/agentdojo-lab/PILOT-PROTOCOL-V1-DEEPSEEK-AMENDMENT-1.md` ("PROT-A1") and
 `packages/agentdojo-lab/configs/pilot_protocol_v1_deepseek_amendment_1.json` ("ACFG").
 
-- **Model use.** It was written with zero model requests and no commit.
-- **What it permits.** Nothing yet. No ADI run may start until the sign-off lines of §8 are signed, the amendment is committed and hash-recorded (PROT-A1 §12), and G-ADI-0 passes.
+- **Model use.** The draft was written with zero model requests before its effective source commit.
+- **What it permits.** ADI stages may start only after the separate §12 results hash record is committed and G-ADI-0 passes. The source amendment commit alone does not authorize a paid run.
 - **What it leaves alone.** D01–D22, their caps, their order and their gates are unchanged.
 
 Contents:
@@ -290,7 +290,7 @@ python $ROUTE run-stage --artifact argus --config "$SADI/argus/stages.adi.json" 
 | U2 | **Signed: keep eval protection.** Dev only, up to 8 stock-expressible cases (current scratch gate: 6). Alternative, not selected: waive for ADI, up to 16 stock-expressible cases (current scratch gate: 12), with the stated re-split cost to SS eval. |
 | U3 | **Signed: proposed caps, guard USD.** D23 $0.10, D24 $0.25, D25 $0.40, D26 $1.00, D27 $1.00, D28 $2.60, D29 $5.30, D30 $6.50, D31 $0.50, D32 $6.50 (C ≤ $6.50); **total $24.15**, inside the R7 ceiling of **$109.44**, no raise. Alternatives, not selected: U2 waiver $38.85 with a $118.42 ceiling; U1 (b) $11.15. |
 | U4 | **Operator disclosure: yes.** This continuation opened and verified D08–D13 and D22 results and some raw records. It read D11 ARGUS S1 CLEAN 1/2 `legitimate`, D12 SS-0 `x_sink_called` 0/100, D13 T=0 0/20, and these experiments' status, bills and checks. D14–D21 stopped at the preceding gates and have no results to read. This statement makes no claim about other readers. |
-| U5 | **Commit** the effective amendment and the §12 frozen-config log append, then write the hash record. The ARGUS adapter code is already tracked on the WIP branch; the third-party ARGUS source is excluded and its original artifact pin remains unresolved (PROT-A1 §12–13). |
+| U5 | **Source commit effective.** It includes the §12 frozen-config log append. The separate results hash record is required before paid runs. ARGUS adapter code is tracked on the WIP branch; the original 0.2.0 ZIP pin is restored and verified, while third-party source remains outside Git (PROT-A1 §12–13). |
 
 **User's U1–U3 approval, verbatim (2026-10-09):** “按草案跑探索性 ADI：保留 eval，当前可跑 6 个 dev 案例；批准 D23–D32 各阶段上限合计 $24.15、累计上限 $109.44（推荐）”. U4 is the operator's disclosure above, not a quotation from the user.
 
@@ -307,6 +307,8 @@ logged.** No model was called, Ollama was not running, and no `.env` value was r
 | `_adi_a1/review_amendment/payload_scan.py` over the repository (689 tracked and untracked files) and the amendment scratch | ADI artifact | Fidelity 0/19 mismatches. **0 files contain a whole payload.** Of this amendment's files: the two docs have 0 shingle hits; the config has one 36-character span, a stock e-mail address that is in vendored AgentDojo data (`span_out_amendment.txt`). |
 | `_adi_a1/amendment/fork_structure.py`, re-run after the review's minor fixes (rglob placeholders, `connect_ex` guard, refusals written to the JSON) | ADI artifact | 19/19 hashes unchanged; workspace placeholder keys now filled; `network_refusals: []` |
 | Snapshot of the changed code (not G-ADI-SSREG): `h2/tests`, `common/tests` (unittest) | lab | h2 26 OK. Common 106 OK (1 skipped) on re-run. In the first run, `test_openai_route` lock test failed once; it passed alone and on re-run. |
+
+The OPEN stage row above is a historical pre-fix check. On the effective source, `adi_stages.py check` passes and `plan` resolves all ten D23–D32 stages with rc 0; G-ADI-0 still requires the separate results hash record and full regression gate.
 
 **Loaders-review fixes, same day (zero cost; network guard on; no refusal logged).**
 
